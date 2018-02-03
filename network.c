@@ -151,10 +151,6 @@ void network_cleanup(void) {
  * void
  */
 void process_packet(const unsigned char * const buffer, const size_t bufsize, struct client *src) {
-    //Used to remove warnings about unused parameters
-    (void)(buffer);
-    (void)(bufsize);
-    (void)(src);
 #ifndef NDEBUG
     debug_print("Received packet of size %zu\n", bufsize);
     debug_print_buffer("Raw hex output: ", buffer, bufsize);
@@ -165,6 +161,11 @@ void process_packet(const unsigned char * const buffer, const size_t bufsize, st
     }
     fprintf(stderr, "\n");
 #endif
+
+    if (isServer) {
+        //Echo the packet
+        sendEncryptedUserData(buffer, bufsize, src);
+    }
 }
 
 /*
