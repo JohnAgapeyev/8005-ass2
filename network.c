@@ -341,7 +341,7 @@ void *performClientActions(void *args) {
 
     unsigned char input[MAX_INPUT_SIZE];
     for (int i = 0; i < 10000; ++i) {
-        memset(input, i, MAX_INPUT_SIZE);
+        memset(input, 'a', MAX_INPUT_SIZE);
         sendEncryptedUserData(input, MAX_INPUT_SIZE, serverEntry);
     }
     //Stop running if we broke out due to reading zero bytes
