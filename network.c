@@ -331,7 +331,7 @@ void *performClientActions(void *args) {
     int epollfd = createEpollFd();
 
     struct epoll_event ev;
-    ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+    ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLONESHOT;
     ev.data.ptr = serverEntry;
 
     addEpollSocket(epollfd, serverSock, &ev);
@@ -507,6 +507,12 @@ void *eventLoop(void *epollfd) {
                 if (eventList[i].data.ptr) {
                     //Regular read connection
                     handleIncomingPacket(eventList[i].data.ptr);
+
+                    struct epoll_event ev;
+                    ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLONESHOT;
+                    ev.data.ptr = eventList[i].data.ptr;
+
+                    epoll_ctl(efd, EPOLL_CTL_MOD, ((struct client *) eventList[i].data.ptr)->socket, &ev);
                 } else {
                     //Null data pointer means listen socket has incoming connection
                     handleIncomingConnection(efd);
@@ -773,7 +779,7 @@ void handleIncomingConnection(const int efd) {
         debug_print_buffer("Shared secret: ", secretKey, HASH_SIZE);
 
         struct epoll_event ev;
-        ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+        ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLONESHOT;
         ev.data.ptr = clientList[newClientIndex];
 
         addEpollSocket(efd, sock, &ev);
