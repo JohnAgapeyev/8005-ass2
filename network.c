@@ -778,8 +778,7 @@ void handleSocketError(const int epollfd, struct client *entry) {
     int sock = (entry) ? entry->socket : listenSock;
     fprintf(stderr, "Disconnection/error on socket %d\n", sock);
 
-    removeEpollSocket(epollfd, sock);
-
+    //Don't need to deregister socket from epoll
     close(sock);
 
     entry->enabled = false;
@@ -821,7 +820,6 @@ uint16_t readPacketLength(const int sock) {
     }
     assert(n == 2);
 
-    printf("Size to read: %zu %zu\n", sizeToRead, MAX_PACKET_SIZE);
     assert(sizeToRead <= MAX_PACKET_SIZE);
     assert(sizeToRead != 0);
 
