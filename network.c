@@ -306,6 +306,64 @@ bool receiveAndVerifyKey(const int * const sock, unsigned char *buffer, const si
     return rtn;
 }
 
+void *performClientActions(void *args) {
+    const char *ip = ((struct client_args *) args)->ip;
+    const char *portString = ((struct client_args *) args)->portString;
+    int inputFD = ((struct client_args *) args)->inputFD;
+
+    int serverSock = establishConnection(ip, portString);
+    if (serverSock == -1) {
+        fatal_error("Unable to connect to server\n");
+    }
+
+    setNonBlocking(serverSock);
+
+    size_t clientNum = addClient(serverSock);
+
+    pthread_mutex_lock(&clientLock);
+    struct client *serverEntry = clientList[clientNum];
+    pthread_mutex_unlock(&clientLock);
+
+    unsigned char *sharedSecret = exchangeKeys(serverEntry);
+
+    debug_print_buffer("Shared secret: ", sharedSecret, SYMMETRIC_KEY_SIZE);
+
+    int epollfd = createEpollFd();
+
+    struct epoll_event ev;
+    ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+    ev.data.ptr = serverEntry;
+
+    addEpollSocket(epollfd, serverSock, &ev);
+
+    pthread_t readThread;
+    pthread_create(&readThread, NULL, eventLoop, &epollfd);
+
+    unsigned char input[MAX_INPUT_SIZE];
+    while(isRunning) {
+        int n = read(inputFD, input, MAX_INPUT_SIZE);
+        if (n > 0) {
+            sendEncryptedUserData(input, n, serverEntry);
+        } else {
+            printf("Read returned zero or error\n");
+            break;
+        }
+    }
+    //Stop running if we broke out due to reading zero bytes
+    isRunning = false;
+
+    pthread_join(readThread, NULL);
+
+    //I don't like this, but the server errors trying to echo if we don't
+    //Maybe when we change how the sending is done, this will stop being an issue
+    sleep(1);
+
+    shutdown(serverSock, SHUT_RDWR);
+    close(serverSock);
+    close(epollfd);
+    return NULL;
+}
+
 /*
  * FUNCTION: startClient
  *
@@ -332,72 +390,25 @@ bool receiveAndVerifyKey(const int * const sock, unsigned char *buffer, const si
 void startClient(const char *ip, const char *portString, int inputFD, const unsigned long long worker_count) {
     network_init();
 
-    signal(SIGQUIT, SIG_IGN);
+    pthread_t threads[worker_count];
+
+    struct client_args *testArgs = checked_malloc(sizeof(struct client_args));
+    testArgs->ip = ip;
+    testArgs->portString = portString;
+    testArgs->inputFD = inputFD;
+
     for (unsigned long long i = 0; i < worker_count; ++i) {
-        switch (fork()) {
-            case 0:
-                {
-                    //Child process
-                    int serverSock = establishConnection(ip, portString);
-                    if (serverSock == -1) {
-                        fatal_error("Unable to connect to server\n");
-                    }
-
-                    setNonBlocking(serverSock);
-
-                    size_t clientNum = addClient(serverSock);
-
-                    struct client *serverEntry = clientList[clientNum];
-
-                    unsigned char *sharedSecret = exchangeKeys(serverEntry);
-
-                    debug_print_buffer("Shared secret: ", sharedSecret, SYMMETRIC_KEY_SIZE);
-
-                    int epollfd = createEpollFd();
-
-                    struct epoll_event ev;
-                    ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
-                    ev.data.ptr = serverEntry;
-
-                    addEpollSocket(epollfd, serverSock, &ev);
-
-                    pthread_t readThread;
-                    pthread_create(&readThread, NULL, eventLoop, &epollfd);
-
-                    unsigned char input[MAX_INPUT_SIZE];
-                    while(isRunning) {
-                        int n = read(inputFD, input, MAX_INPUT_SIZE);
-                        if (n > 0) {
-                            sendEncryptedUserData(input, n, serverEntry);
-                        } else {
-                            printf("Read returned zero or error\n");
-                            break;
-                        }
-                    }
-                    //Stop running if we broke out due to reading zero bytes
-                    isRunning = false;
-
-                    pthread_join(readThread, NULL);
-
-                    //I don't like this, but the server errors trying to echo if we don't
-                    //Maybe when we change how the sending is done, this will stop being an issue
-                    sleep(1);
-
-                    shutdown(serverSock, SHUT_RDWR);
-                    close(serverSock);
-                    close(epollfd);
-                    exit(EXIT_SUCCESS);
-                }
-            case -1:
-                kill(0, SIGQUIT);
-                break;
-            default:
-                //Parent process
-                break;
+        if (pthread_create(threads + i, NULL, performClientActions, testArgs) != 0) {
+            for (unsigned long long j = 0; j < i; ++j) {
+                pthread_kill(threads[j], SIGQUIT);
+            }
+            break;
         }
     }
-    //Spin until all children are gone
-    while(wait(NULL) != -1);
+    for (unsigned long long i = 0; i < worker_count; ++i) {
+        pthread_join(threads[i], NULL);
+    }
+    free(testArgs);
     close(inputFD);
     network_cleanup();
 }
@@ -446,6 +457,10 @@ void startServer(const int inputFD) {
 
     //TODO: Create threads here instead of calling eventloop directly
     eventLoop(&epollfd);
+
+    //for (size_t i = 0; i < 7; ++i) {
+        //pthread_join(threads[i], NULL);
+    //}
 
     close(epollfd);
     close(inputFD);
@@ -554,9 +569,10 @@ size_t addClient(int sock) {
         clientMax *= 2;
     }
     ++clientCount;
+    size_t result = clientCount - 2;
     pthread_mutex_unlock(&clientLock);
     //Subtract 2: 1 for incremented client count, 1 for dummy value
-    return clientCount - 2;
+    return result;
 }
 
 /*
@@ -749,8 +765,11 @@ void handleIncomingConnection(const int efd) {
         setNonBlocking(sock);
 
         size_t newClientIndex = addClient(sock);
+        pthread_mutex_lock(&clientLock);
+        struct client *newClientEntry = clientList[newClientIndex];
+        pthread_mutex_unlock(&clientLock);
 
-        unsigned char *secretKey = exchangeKeys(clientList[newClientIndex]);
+        unsigned char *secretKey = exchangeKeys(newClientEntry);
         debug_print_buffer("Shared secret: ", secretKey, HASH_SIZE);
 
         struct epoll_event ev;
@@ -783,6 +802,7 @@ void handleIncomingConnection(const int efd) {
  * void
  */
 void handleSocketError(struct client *entry) {
+    pthread_mutex_lock(&clientLock);
     int sock = (entry) ? entry->socket : listenSock;
     fprintf(stderr, "Disconnection/error on socket %d\n", sock);
 
@@ -790,6 +810,7 @@ void handleSocketError(struct client *entry) {
     close(sock);
 
     entry->enabled = false;
+    pthread_mutex_unlock(&clientLock);
 }
 
 /*
