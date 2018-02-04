@@ -340,14 +340,9 @@ void *performClientActions(void *args) {
     pthread_create(&readThread, NULL, eventLoop, &epollfd);
 
     unsigned char input[MAX_INPUT_SIZE];
-    while(isRunning) {
-        int n = read(inputFD, input, MAX_INPUT_SIZE);
-        if (n > 0) {
-            sendEncryptedUserData(input, n, serverEntry);
-        } else {
-            printf("Read returned zero or error\n");
-            break;
-        }
+    for (int i = 0; i < 10000; ++i) {
+        memset(input, i, MAX_INPUT_SIZE);
+        sendEncryptedUserData(input, MAX_INPUT_SIZE, serverEntry);
     }
     //Stop running if we broke out due to reading zero bytes
     isRunning = false;
