@@ -45,6 +45,7 @@
 #include <openssl/evp.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
+#include <sys/wait.h>
 #include <arpa/inet.h>
 #include "network.h"
 #include "epoll.h"
@@ -328,68 +329,75 @@ bool receiveAndVerifyKey(const int * const sock, unsigned char *buffer, const si
  * RETURNS:
  * void
  */
-void startClient(const char *ip, const char *portString, int inputFD) {
+void startClient(const char *ip, const char *portString, int inputFD, const unsigned long long worker_count) {
     network_init();
 
-    int serverSock;
-    if (ip == NULL) {
-        char *address = getUserInput("Enter the server's address: ");
-        serverSock = establishConnection(address, portString);
-        free(address);
-    } else {
-        serverSock = establishConnection(ip, portString);
-    }
+    signal(SIGQUIT, SIG_IGN);
+    for (unsigned long long i = 0; i < worker_count; ++i) {
+        switch (fork()) {
+            case 0:
+                {
+                    //Child process
+                    int serverSock = establishConnection(ip, portString);
+                    if (serverSock == -1) {
+                        fatal_error("Unable to connect to server\n");
+                    }
 
-    if (serverSock == -1) {
-        fprintf(stderr, "Unable to connect to server\n");
-        goto clientCleanup;
-    }
+                    setNonBlocking(serverSock);
 
-    setNonBlocking(serverSock);
+                    size_t clientNum = addClient(serverSock);
 
-    size_t clientNum = addClient(serverSock);
+                    struct client *serverEntry = clientList[clientNum];
 
-    struct client *serverEntry = clientList[clientNum];
+                    unsigned char *sharedSecret = exchangeKeys(serverEntry);
 
-    unsigned char *sharedSecret = exchangeKeys(serverEntry);
+                    debug_print_buffer("Shared secret: ", sharedSecret, SYMMETRIC_KEY_SIZE);
 
-    debug_print_buffer("Shared secret: ", sharedSecret, SYMMETRIC_KEY_SIZE);
+                    int epollfd = createEpollFd();
 
-    int epollfd = createEpollFd();
+                    struct epoll_event ev;
+                    ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+                    ev.data.ptr = serverEntry;
 
-    struct epoll_event ev;
-    ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
-    ev.data.ptr = serverEntry;
+                    addEpollSocket(epollfd, serverSock, &ev);
 
-    addEpollSocket(epollfd, serverSock, &ev);
+                    pthread_t readThread;
+                    pthread_create(&readThread, NULL, eventLoop, &epollfd);
 
-    pthread_t readThread;
-    pthread_create(&readThread, NULL, eventLoop, &epollfd);
+                    unsigned char input[MAX_INPUT_SIZE];
+                    while(isRunning) {
+                        int n = read(inputFD, input, MAX_INPUT_SIZE);
+                        if (n > 0) {
+                            sendEncryptedUserData(input, n, serverEntry);
+                        } else {
+                            printf("Read returned zero or error\n");
+                            break;
+                        }
+                    }
+                    //Stop running if we broke out due to reading zero bytes
+                    isRunning = false;
 
-    unsigned char input[MAX_INPUT_SIZE];
-    while(isRunning) {
-        int n = read(inputFD, input, MAX_INPUT_SIZE);
-        if (n > 0) {
-            sendEncryptedUserData(input, n, serverEntry);
-        } else {
-            printf("Read returned zero or error\n");
-            break;
+                    pthread_join(readThread, NULL);
+
+                    //I don't like this, but the server errors trying to echo if we don't
+                    //Maybe when we change how the sending is done, this will stop being an issue
+                    sleep(1);
+
+                    shutdown(serverSock, SHUT_RDWR);
+                    close(serverSock);
+                    close(epollfd);
+                    exit(EXIT_SUCCESS);
+                }
+            case -1:
+                kill(0, SIGQUIT);
+                break;
+            default:
+                //Parent process
+                break;
         }
     }
-    //Stop running if we broke out due to reading zero bytes
-    isRunning = false;
-
-    pthread_join(readThread, NULL);
-
-    //I don't like this, but the server errors trying to echo if we don't
-    //Maybe when we change how the sending is done, this will stop being an issue
-    sleep(1);
-
-    shutdown(serverSock, SHUT_RDWR);
-    close(serverSock);
-
-clientCleanup:
-    close(epollfd);
+    //Spin until all children are gone
+    while(wait(NULL) != -1);
     close(inputFD);
     network_cleanup();
 }

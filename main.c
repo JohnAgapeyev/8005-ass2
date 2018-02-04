@@ -82,6 +82,7 @@ static struct option long_options[] = {
     {"server",  no_argument,       0, 's'},
     {"ip",      required_argument, 0, 'i'},
     {"file",    required_argument, 0, 'f'},
+    {"count",   required_argument, 0, 'k'},
     {0,         0,                 0, 0}
 };
 
@@ -93,6 +94,7 @@ static struct option long_options[] = {
             "\t [s]erver                - run as server, exclusive with client\n"\
             "\t [i]p <url || ip>        - address to connect to\n"\
             "\t [f]ile <path/to/file>   - the file to send\n"\
+            "\t [k]/count <1-ULLONG_MAX>- Numbewr of worker clients\n"\
             "\t [h]elp                  - this message\n"\
             );\
     } while(0)
@@ -140,10 +142,12 @@ int main(int argc, char **argv) {
 
     int inputFD = -1;
 
+    unsigned long long worker_count = 0;
+
     int c;
     for (;;) {
         int option_index = 0;
-        if ((c = getopt_long(argc, argv, "csp:i:f:h", long_options, &option_index)) == -1) {
+        if ((c = getopt_long(argc, argv, "csp:i:f:hk:", long_options, &option_index)) == -1) {
             break;
         }
         switch (c) {
@@ -163,6 +167,13 @@ int main(int argc, char **argv) {
             case 'f':
                 filename = optarg;
                 break;
+            case 'k':
+                worker_count = strtoull(optarg, NULL, 10);
+                if (errno == EINVAL || errno == ERANGE) {
+                    perror("strtoull");
+                    return EXIT_FAILURE;
+                }
+                break;
             case 'h':
                 //Intentional fallthrough
             case '?':
@@ -176,13 +187,18 @@ int main(int argc, char **argv) {
         print_help();
         return EXIT_SUCCESS;
     }
+    if (!isServer && worker_count == 0) {
+        print_help();
+        return EXIT_SUCCESS;
+    }
     if (portString == NULL) {
         puts("No port set, reverting to port 1337");
         portString = "1337";
     }
     if (ipAddr == NULL) {
         if (!isServer) {
-            puts("No IP provided, will prompt for IP");
+            print_help();
+            return EXIT_SUCCESS;
         }
     }
     if (filename == NULL) {
@@ -220,7 +236,6 @@ int main(int argc, char **argv) {
         exit(0);
     }
 
-
     if (isServer) {
         listenSock = createSocket(AF_INET, SOCK_STREAM, 0);
         bindSocket(listenSock, port);
@@ -228,7 +243,7 @@ int main(int argc, char **argv) {
         startServer(inputFD);
         close(listenSock);
     } else {
-        startClient(ipAddr, portString, inputFD);
+        startClient(ipAddr, portString, inputFD, worker_count);
     }
 
     return EXIT_SUCCESS;
