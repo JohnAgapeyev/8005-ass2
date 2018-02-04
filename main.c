@@ -239,7 +239,7 @@ int main(int argc, char **argv) {
     if (isServer) {
         listenSock = createSocket(AF_INET, SOCK_STREAM, 0);
         bindSocket(listenSock, port);
-        listen(listenSock, 5);
+        listen(listenSock, 10000);
         startServer(inputFD);
         close(listenSock);
     } else {
