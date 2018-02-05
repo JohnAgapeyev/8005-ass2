@@ -249,7 +249,7 @@ int establishConnection(const char *address, const char *port) {
 size_t readNBytes(const int sock, unsigned char *buf, size_t bufsize) {
     const size_t origBufSize = bufsize;
     for (;;) {
-        const int n = recv(sock, buf, bufsize, 0);
+        const int n = recv(sock, buf, bufsize, MSG_WAITALL);
         if (n == -1) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 //Nonblocking read and no more data so do nothing
@@ -327,8 +327,5 @@ void setSocketBuffers(const int sock) {
     }
     if (setsockopt(sock, SOL_SOCKET, SO_RCVBUFFORCE, &buffer_size, sizeof(unsigned long long)) == -1) {
         fatal_error("setsockopt RCV_BUFFER");
-    }
-    if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &(int){1}, sizeof(int)) == -1) {
-        fatal_error("setsockopt TCP_NODELAY");
     }
 }
