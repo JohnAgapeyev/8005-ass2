@@ -309,7 +309,6 @@ bool receiveAndVerifyKey(const int * const sock, unsigned char *buffer, const si
 void *performClientActions(void *args) {
     const char *ip = ((struct client_args *) args)->ip;
     const char *portString = ((struct client_args *) args)->portString;
-    int inputFD = ((struct client_args *) args)->inputFD;
     int connection_length = ((struct client_args *) args)->connection_length;
 
     int serverSock = establishConnection(ip, portString);
@@ -385,7 +384,7 @@ void *performClientActions(void *args) {
  * RETURNS:
  * void
  */
-void startClient(const char *ip, const char *portString, int inputFD, const unsigned long long worker_count, const unsigned long connection_length) {
+void startClient(const char *ip, const char *portString, const unsigned long long worker_count, const unsigned long connection_length) {
     network_init();
 
     pthread_t threads[worker_count];
@@ -393,7 +392,6 @@ void startClient(const char *ip, const char *portString, int inputFD, const unsi
     struct client_args *testArgs = checked_malloc(sizeof(struct client_args));
     testArgs->ip = ip;
     testArgs->portString = portString;
-    testArgs->inputFD = inputFD;
     testArgs->connection_length = connection_length;
 
     for (unsigned long long i = 0; i < worker_count; ++i) {
@@ -408,7 +406,6 @@ void startClient(const char *ip, const char *portString, int inputFD, const unsi
         pthread_join(threads[i], NULL);
     }
     free(testArgs);
-    close(inputFD);
     network_cleanup();
 }
 
@@ -436,7 +433,7 @@ void startClient(const char *ip, const char *portString, int inputFD, const unsi
  * NOTES:
  * Performs similar functions to startClient, except for the inital connection.
  */
-void startServer(const int inputFD) {
+void startServer(void) {
     network_init();
 
     int epollfd = createEpollFd();
@@ -462,7 +459,6 @@ void startServer(const int inputFD) {
     //}
 
     close(epollfd);
-    close(inputFD);
     network_cleanup();
 }
 

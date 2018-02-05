@@ -81,7 +81,6 @@ static struct option long_options[] = {
     {"client",  no_argument,       0, 'c'},
     {"server",  no_argument,       0, 's'},
     {"ip",      required_argument, 0, 'i'},
-    {"file",    required_argument, 0, 'f'},
     {"count",   required_argument, 0, 'k'},
     {"time",    required_argument, 0, 't'},
     {0,         0,                 0, 0}
@@ -94,7 +93,6 @@ static struct option long_options[] = {
             "\t [c]lient                - run as client, exclusive with server\n"\
             "\t [s]erver                - run as server, exclusive with client\n"\
             "\t [i]p <url || ip>        - address to connect to\n"\
-            "\t [f]ile <path/to/file>   - the file to send\n"\
             "\t [k]/count <1-ULLONG_MAX>- Number of worker clients\n"\
             "\t [t]ime <1-60>           - Length of time in seconds for each connection\n"\
             "\t [h]elp                  - this message\n"\
@@ -140,9 +138,6 @@ int main(int argc, char **argv) {
 
     const char *portString = NULL;
     const char *ipAddr = NULL;
-    const char *filename = NULL;
-
-    int inputFD = -1;
 
     unsigned long long worker_count = 0;
     unsigned long connection_length = 0;
@@ -150,7 +145,7 @@ int main(int argc, char **argv) {
     int c;
     for (;;) {
         int option_index = 0;
-        if ((c = getopt_long(argc, argv, "csp:i:f:hk:t:", long_options, &option_index)) == -1) {
+        if ((c = getopt_long(argc, argv, "csp:i:hk:t:", long_options, &option_index)) == -1) {
             break;
         }
         switch (c) {
@@ -166,9 +161,6 @@ int main(int argc, char **argv) {
                 break;
             case 'i':
                 ipAddr = optarg;
-                break;
-            case 'f':
-                filename = optarg;
                 break;
             case 'k':
                 worker_count = strtoull(optarg, NULL, 10);
@@ -215,19 +207,6 @@ int main(int argc, char **argv) {
             return EXIT_SUCCESS;
         }
     }
-    if (filename == NULL) {
-        puts("No filename provided, defaulting to stdin");
-        inputFD = STDIN_FILENO;
-    } else {
-        FILE *fp = fopen(filename, "rb");
-        if (fp == NULL) {
-            printf("Filename invalid\n");
-            print_help();
-            return EXIT_FAILURE;
-        }
-        inputFD = fileno(fp);
-        assert(inputFD != -1);
-    }
     port = strtoul(portString, NULL, 0);
     if (errno == EINVAL || errno == ERANGE) {
         perror("strtoul");
@@ -254,10 +233,10 @@ int main(int argc, char **argv) {
         listenSock = createSocket(AF_INET, SOCK_STREAM, 0);
         bindSocket(listenSock, port);
         listen(listenSock, 10000);
-        startServer(inputFD);
+        startServer();
         close(listenSock);
     } else {
-        startClient(ipAddr, portString, inputFD, worker_count, connection_length);
+        startClient(ipAddr, portString, worker_count, connection_length);
     }
 
     return EXIT_SUCCESS;
