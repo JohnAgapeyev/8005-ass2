@@ -83,6 +83,7 @@ static struct option long_options[] = {
     {"ip",      required_argument, 0, 'i'},
     {"file",    required_argument, 0, 'f'},
     {"count",   required_argument, 0, 'k'},
+    {"time",    required_argument, 0, 't'},
     {0,         0,                 0, 0}
 };
 
@@ -94,7 +95,8 @@ static struct option long_options[] = {
             "\t [s]erver                - run as server, exclusive with client\n"\
             "\t [i]p <url || ip>        - address to connect to\n"\
             "\t [f]ile <path/to/file>   - the file to send\n"\
-            "\t [k]/count <1-ULLONG_MAX>- Numbewr of worker clients\n"\
+            "\t [k]/count <1-ULLONG_MAX>- Number of worker clients\n"\
+            "\t [t]ime <1-60>           - Length of time in seconds for each connection\n"\
             "\t [h]elp                  - this message\n"\
             );\
     } while(0)
@@ -143,11 +145,12 @@ int main(int argc, char **argv) {
     int inputFD = -1;
 
     unsigned long long worker_count = 0;
+    unsigned long connection_length = 0;
 
     int c;
     for (;;) {
         int option_index = 0;
-        if ((c = getopt_long(argc, argv, "csp:i:f:hk:", long_options, &option_index)) == -1) {
+        if ((c = getopt_long(argc, argv, "csp:i:f:hk:t:", long_options, &option_index)) == -1) {
             break;
         }
         switch (c) {
@@ -174,6 +177,13 @@ int main(int argc, char **argv) {
                     return EXIT_FAILURE;
                 }
                 break;
+            case 't':
+                connection_length = strtoul(optarg, NULL, 10);
+                if (errno == EINVAL || errno == ERANGE) {
+                    perror("strtoul");
+                    return EXIT_FAILURE;
+                }
+                break;
             case 'h':
                 //Intentional fallthrough
             case '?':
@@ -188,6 +198,10 @@ int main(int argc, char **argv) {
         return EXIT_SUCCESS;
     }
     if (!isServer && worker_count == 0) {
+        print_help();
+        return EXIT_SUCCESS;
+    }
+    if (!isServer && (connection_length == 0 || connection_length > 60)) {
         print_help();
         return EXIT_SUCCESS;
     }
@@ -243,7 +257,7 @@ int main(int argc, char **argv) {
         startServer(inputFD);
         close(listenSock);
     } else {
-        startClient(ipAddr, portString, inputFD, worker_count);
+        startClient(ipAddr, portString, inputFD, worker_count, connection_length);
     }
 
     return EXIT_SUCCESS;

@@ -53,6 +53,7 @@ struct client_args {
     const char *ip;
     const char *portString;
     int inputFD;
+    unsigned long connection_length;
 };
 
 /*
@@ -77,7 +78,7 @@ void network_cleanup(void);
 void process_packet(const unsigned char * const buffer, const size_t bufsize, struct client *src);
 unsigned char *exchangeKeys(struct client *clientEntry);
 bool receiveAndVerifyKey(const int * const sock, unsigned char *buffer, const size_t bufSize, const size_t keyLen, const size_t hmacLen);
-void startClient(const char *ip, const char *portString, int inputFD, const unsigned long long worker_count);
+void startClient(const char *ip, const char *portString, int inputFD, const unsigned long long worker_count, const unsigned long connection_length);
 void startServer(const int inputFD);
 size_t addClient(int sock);
 void initClientStruct(struct client *newClient, int sock);

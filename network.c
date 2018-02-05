@@ -310,6 +310,7 @@ void *performClientActions(void *args) {
     const char *ip = ((struct client_args *) args)->ip;
     const char *portString = ((struct client_args *) args)->portString;
     int inputFD = ((struct client_args *) args)->inputFD;
+    int connection_length = ((struct client_args *) args)->connection_length;
 
     int serverSock = establishConnection(ip, portString);
     if (serverSock == -1) {
@@ -340,11 +341,13 @@ void *performClientActions(void *args) {
     pthread_create(&readThread, NULL, eventLoop, &epollfd);
 
     unsigned char input[MAX_INPUT_SIZE];
-    for (int i = 0; i < 10000; ++i) {
-        memset(input, 'a', MAX_INPUT_SIZE);
+    memset(input, 'a', MAX_INPUT_SIZE);
+    time_t end_time = time(NULL) + connection_length;
+    do {
         sendEncryptedUserData(input, MAX_INPUT_SIZE, serverEntry);
-    }
-    //Stop running if we broke out due to reading zero bytes
+    } while(time(NULL) < end_time);
+    printf("Done sending\n");
+
     isRunning = false;
 
     pthread_join(readThread, NULL);
@@ -382,7 +385,7 @@ void *performClientActions(void *args) {
  * RETURNS:
  * void
  */
-void startClient(const char *ip, const char *portString, int inputFD, const unsigned long long worker_count) {
+void startClient(const char *ip, const char *portString, int inputFD, const unsigned long long worker_count, const unsigned long connection_length) {
     network_init();
 
     pthread_t threads[worker_count];
@@ -391,6 +394,7 @@ void startClient(const char *ip, const char *portString, int inputFD, const unsi
     testArgs->ip = ip;
     testArgs->portString = portString;
     testArgs->inputFD = inputFD;
+    testArgs->connection_length = connection_length;
 
     for (unsigned long long i = 0; i < worker_count; ++i) {
         if (pthread_create(threads + i, NULL, performClientActions, testArgs) != 0) {
