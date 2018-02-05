@@ -337,8 +337,13 @@ void *performClientActions(void *args) {
 
     addEpollSocket(epollfd, serverSock, &ev);
 
-    pthread_t readThread;
-    pthread_create(&readThread, NULL, eventLoop, &epollfd);
+    //pthread_t readThread;
+    //pthread_create(&readThread, NULL, eventLoop, &epollfd);
+
+    pthread_t threads[7];
+    for (size_t i = 0; i < 7; ++i) {
+        pthread_create(&threads[i], NULL, eventLoop, &epollfd);
+    }
 
     unsigned char input[MAX_INPUT_SIZE];
     memset(input, 'a', MAX_INPUT_SIZE);
@@ -350,7 +355,7 @@ void *performClientActions(void *args) {
 
     isRunning = false;
 
-    pthread_join(readThread, NULL);
+    //pthread_join(readThread, NULL);
 
     //I don't like this, but the server errors trying to echo if we don't
     //Maybe when we change how the sending is done, this will stop being an issue
@@ -847,10 +852,6 @@ uint16_t readPacketLength(const int sock) {
     int n = readNBytes(sock, (unsigned char *) &sizeToRead, sizeof(uint16_t));
     if (n == 0) {
         //Client has left us
-        return 0;
-    }
-    if (sizeToRead > MAX_PACKET_SIZE) {
-        //Don't know why this happens, but drop it if it doe
         return 0;
     }
     assert(n == 2);

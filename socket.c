@@ -55,6 +55,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/fcntl.h>
+#include <netinet/tcp.h>
 #include <netdb.h>
 #include <string.h>
 #include <stdio.h>
@@ -326,5 +327,8 @@ void setSocketBuffers(const int sock) {
     }
     if (setsockopt(sock, SOL_SOCKET, SO_RCVBUFFORCE, &buffer_size, sizeof(unsigned long long)) == -1) {
         fatal_error("setsockopt RCV_BUFFER");
+    }
+    if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &(int){1}, sizeof(int)) == -1) {
+        fatal_error("setsockopt TCP_NODELAY");
     }
 }
