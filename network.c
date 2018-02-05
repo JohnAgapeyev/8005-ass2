@@ -317,6 +317,7 @@ void *performClientActions(void *args) {
     }
 
     setNonBlocking(serverSock);
+    setSocketBuffers(serverSock);
 
     size_t clientNum = addClient(serverSock);
 
@@ -763,6 +764,7 @@ void handleIncomingConnection(const int efd) {
         }
 
         setNonBlocking(sock);
+        setSocketBuffers(sock);
 
         size_t newClientIndex = addClient(sock);
         pthread_mutex_lock(&clientLock);

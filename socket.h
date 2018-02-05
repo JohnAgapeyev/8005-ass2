@@ -57,6 +57,7 @@
 
 int createSocket(int domain, int type, int protocol);
 void setNonBlocking(const int sock);
+void setSocketBuffers(const int sock);
 void bindSocket(const int sock, const unsigned short port);
 int establishConnection(const char *address, const char *port);
 size_t readNBytes(const int sock, unsigned char *buf, size_t bufsize);

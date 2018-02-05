@@ -318,3 +318,13 @@ start:
     }
 }
 
+void setSocketBuffers(const int sock) {
+    //4 MiB
+    unsigned long long buffer_size = 1024 * 1024 * 40;
+    if (setsockopt(sock, SOL_SOCKET, SO_SNDBUFFORCE, &buffer_size, sizeof(unsigned long long)) == -1) {
+        fatal_error("setsockopt SND_BUFFER");
+    }
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVBUFFORCE, &buffer_size, sizeof(unsigned long long)) == -1) {
+        fatal_error("setsockopt RCV_BUFFER");
+    }
+}
