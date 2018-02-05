@@ -847,6 +847,10 @@ uint16_t readPacketLength(const int sock) {
         //Client has left us
         return 0;
     }
+    if (sizeToRead > MAX_PACKET_SIZE) {
+        //Don't know why this happens, but drop it if it doe
+        return 0;
+    }
     assert(n == 2);
 
     assert(sizeToRead <= MAX_PACKET_SIZE);
