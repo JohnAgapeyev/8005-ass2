@@ -342,7 +342,7 @@ void *performClientActions(void *args) {
     unsigned char input[MAX_INPUT_SIZE];
     memset(input, 'a', MAX_INPUT_SIZE);
     time_t end_time = time(NULL) + connection_length;
-    do {
+
         sendEncryptedUserData(input, MAX_INPUT_SIZE, serverEntry);
     } while(time(NULL) < end_time);
     printf("Done sending\n");

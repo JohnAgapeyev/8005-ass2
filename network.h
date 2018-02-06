@@ -71,6 +71,11 @@ extern struct client **clientList;
 extern size_t clientCount;
 extern unsigned short port;
 extern int listenSock;
+// if epoll
+extern bool isEpoll;
+extern bool isSelect;
+extern bool isNormal;
+
 
 void network_init(void);
 void network_cleanup(void);
