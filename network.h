@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <pthread.h>
 #include <openssl/evp.h>
 #include "crypto.h"
 
@@ -47,6 +48,7 @@ struct client {
     unsigned char *sharedKey;
     EVP_PKEY *signingKey;
     bool enabled;
+    pthread_mutex_t *lock;
 };
 
 struct client_args {

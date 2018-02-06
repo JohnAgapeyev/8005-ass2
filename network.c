@@ -121,6 +121,8 @@ void network_cleanup(void) {
             OPENSSL_clear_free(clientList[i]->sharedKey, SYMMETRIC_KEY_SIZE);
             EVP_PKEY_free(clientList[i]->signingKey);
             free(clientList[i]);
+            pthread_mutex_destroy(clientList[i]->lock);
+            free(clientList[i]->lock);
         }
     }
     pthread_mutex_destroy(&clientLock);
@@ -601,6 +603,8 @@ void initClientStruct(struct client *newClient, int sock) {
     newClient->socket = sock;
     newClient->sharedKey = NULL;
     newClient->signingKey = NULL;
+    newClient->lock = checked_malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(newClient->lock, NULL);
     newClient->enabled = true;
 }
 
@@ -803,6 +807,7 @@ void handleIncomingConnection(const int efd) {
  * void
  */
 void handleSocketError(struct client *entry) {
+    pthread_mutex_lock(entry->lock);
     pthread_mutex_lock(&clientLock);
     int sock = (entry) ? entry->socket : listenSock;
     fprintf(stderr, "Disconnection/error on socket %d\n", sock);
@@ -811,7 +816,9 @@ void handleSocketError(struct client *entry) {
     close(sock);
 
     entry->enabled = false;
+
     pthread_mutex_unlock(&clientLock);
+    pthread_mutex_unlock(entry->lock);
 }
 
 /*
@@ -887,13 +894,16 @@ uint16_t readPacketLength(const int sock) {
  * Handles the staggered and full read, before passing the packet off.
  */
 void handleIncomingPacket(struct client *src) {
+    pthread_mutex_lock(src->lock);
     const int sock = src->socket;
     unsigned char *buffer = checked_malloc(MAX_PACKET_SIZE);
     for (;;) {
         uint16_t sizeToRead = readPacketLength(sock);
         if (sizeToRead == 0) {
             //Client has left us
+	    pthread_mutex_unlock(src->lock);
             handleSocketError(src);
+	    pthread_mutex_lock(src->lock);
             break;
         }
         memcpy(buffer, &sizeToRead, sizeof(uint16_t));
@@ -904,11 +914,6 @@ void handleIncomingPacket(struct client *src) {
             int len;
             for (;;) {
                 len = readNBytes(sock, tmpBuf, tmpSize);
-                if (len == 0) {
-                    //Client has left us
-                    handleSocketError(src);
-                    return;
-                }
                 assert(len <= tmpSize);
                 if (len == tmpSize) {
                     debug_print_buffer("Raw Received packet: ", buffer, sizeToRead + sizeof(uint16_t));
@@ -924,6 +929,7 @@ void handleIncomingPacket(struct client *src) {
             }
         }
     }
+    pthread_mutex_unlock(src->lock);
     free(buffer);
 }
 
