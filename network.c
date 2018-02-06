@@ -854,6 +854,9 @@ uint16_t readPacketLength(const int sock) {
         //Client has left us
         return 0;
     }
+    if (sizeToRead > MAX_PACKET_SIZE) {
+        return 0;
+    }
     if (sizeToRead <= MAX_PACKET_SIZE - MAX_INPUT_SIZE) {
         return 0;
     }
