@@ -781,7 +781,7 @@ void handleIncomingConnection(const int efd) {
 
         struct epoll_event ev;
         ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLONESHOT;
-        ev.data.ptr = clientList[newClientIndex];
+        ev.data.ptr = newClientEntry;
 
         addEpollSocket(efd, sock, &ev);
     }
