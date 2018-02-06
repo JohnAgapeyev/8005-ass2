@@ -646,9 +646,12 @@ void initClientStruct(struct client *newClient, int sock) {
  * HMAC is calculated over the ciphertext.
  */
 void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *dest) {
+    pthread_mutex_lock(&clientLock);
 	if (dest->enabled == false) {
-		printf("What is going on\n");
+        pthread_mutex_unlock(&clientLock);
+		return;
 	}
+    pthread_mutex_unlock(&clientLock);
     /*
      * Mesg buffer that will be sent
      * mesgLen is self-explanatory
