@@ -893,6 +893,7 @@ void handleIncomingPacket(struct client *src) {
         uint16_t sizeToRead = readPacketLength(sock);
         if (sizeToRead == 0) {
             //Client has left us
+            handleSocketError(src);
             break;
         }
         memcpy(buffer, &sizeToRead, sizeof(uint16_t));
