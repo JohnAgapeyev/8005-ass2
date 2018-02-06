@@ -249,18 +249,23 @@ int establishConnection(const char *address, const char *port) {
 size_t readNBytes(const int sock, unsigned char *buf, size_t bufsize) {
     const size_t origBufSize = bufsize;
     for (;;) {
-        const int n = recv(sock, buf, bufsize, MSG_WAITALL);
+        const int n = recv(sock, buf, bufsize, 0);
         if (n == -1) {
             switch(errno) {
                 case EAGAIN:
-                    continue;
-                case EBADF:
-                case ENOTSOCK:
-                    return origBufSize - bufsize;
+                    //return origBufSize - bufsize;
+		    printf("EAGAIN\n");
+		    return origBufSize - bufsize;
+		    break;
+                //case EBADF:
+                //case ENOTSOCK:
+                    //return origBufSize - bufsize;
+		    //break;
                 default:
                     perror("Socket read");
                     break;
             }
+	    return origBufSize - bufsize;
         }
         if (n == 0) {
             //No more data to read, so do nothing
@@ -307,10 +312,12 @@ start:
                 goto start;
                 break;
             case EPIPE:
+            case ECONNRESET:
                 //Other end has left us, do nothing
                 return;
             default:
-                fatal_error("Socket send");
+                //fatal_error("Socket send");
+                perror("Socket send");
                 break;
         }
     }

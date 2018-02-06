@@ -505,11 +505,15 @@ void *eventLoop(void *epollfd) {
         assert(n != -1);
         for (int i = 0; i < n; ++i) {
             if (eventList[i].events & EPOLLERR || eventList[i].events & EPOLLHUP || eventList[i].events & EPOLLRDHUP) {
-                handleSocketError(eventList[i].data.ptr);
+		    pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
+                    handleSocketError(eventList[i].data.ptr);
+		    pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
             } else if (eventList[i].events & EPOLLIN) {
                 if (eventList[i].data.ptr) {
                     //Regular read connection
+		    pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                     handleIncomingPacket(eventList[i].data.ptr);
+		    pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                 } else {
                     //Null data pointer means listen socket has incoming connection
                     handleIncomingConnection(efd);
@@ -640,6 +644,9 @@ void initClientStruct(struct client *newClient, int sock) {
  * HMAC is calculated over the ciphertext.
  */
 void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *dest) {
+	if (dest->enabled == false) {
+		printf("What is going on\n");
+	}
     /*
      * Mesg buffer that will be sent
      * mesgLen is self-explanatory
@@ -807,7 +814,7 @@ void handleIncomingConnection(const int efd) {
  * void
  */
 void handleSocketError(struct client *entry) {
-    pthread_mutex_lock(entry->lock);
+    //pthread_mutex_lock(entry->lock);
     pthread_mutex_lock(&clientLock);
     int sock = (entry) ? entry->socket : listenSock;
     fprintf(stderr, "Disconnection/error on socket %d\n", sock);
@@ -816,9 +823,12 @@ void handleSocketError(struct client *entry) {
     close(sock);
 
     entry->enabled = false;
+    if (!isServer) {
+	abort();
+    }
 
     pthread_mutex_unlock(&clientLock);
-    pthread_mutex_unlock(entry->lock);
+    //pthread_mutex_unlock(entry->lock);
 }
 
 /*
@@ -894,16 +904,25 @@ uint16_t readPacketLength(const int sock) {
  * Handles the staggered and full read, before passing the packet off.
  */
 void handleIncomingPacket(struct client *src) {
-    pthread_mutex_lock(src->lock);
+    //pthread_mutex_lock(src->lock);
+    pthread_mutex_lock(&clientLock);
+    if (src->enabled == false) {
+	    pthread_mutex_unlock(&clientLock);
+	    return;
+    }
+    pthread_mutex_unlock(&clientLock);
+    if (src->enabled == false) {
+	printf("How what why no\n");
+    }
     const int sock = src->socket;
     unsigned char *buffer = checked_malloc(MAX_PACKET_SIZE);
     for (;;) {
         uint16_t sizeToRead = readPacketLength(sock);
         if (sizeToRead == 0) {
             //Client has left us
-            pthread_mutex_unlock(src->lock);
+            //pthread_mutex_unlock(src->lock);
             handleSocketError(src);
-            pthread_mutex_lock(src->lock);
+            //pthread_mutex_lock(src->lock);
             break;
         }
         memcpy(buffer, &sizeToRead, sizeof(uint16_t));
@@ -929,7 +948,7 @@ void handleIncomingPacket(struct client *src) {
             }
         }
     }
-    pthread_mutex_unlock(src->lock);
+    //pthread_mutex_unlock(src->lock);
     free(buffer);
 }
 
