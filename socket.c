@@ -254,18 +254,15 @@ size_t readNBytes(const int sock, unsigned char *buf, size_t bufsize) {
             switch(errno) {
                 case EAGAIN:
                     //return origBufSize - bufsize;
-		    printf("EAGAIN\n");
-		    return origBufSize - bufsize;
-		    break;
-                //case EBADF:
-                //case ENOTSOCK:
-                    //return origBufSize - bufsize;
-		    //break;
+                    break;
+                case EBADF:
+                case ENOTSOCK:
+                    break;
                 default:
                     perror("Socket read");
                     break;
             }
-	    return origBufSize - bufsize;
+            return origBufSize - bufsize;
         }
         if (n == 0) {
             //No more data to read, so do nothing

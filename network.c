@@ -825,9 +825,6 @@ void handleSocketError(struct client *entry) {
     close(sock);
 
     entry->enabled = false;
-    if (!isServer) {
-	abort();
-    }
 
     pthread_mutex_unlock(&clientLock);
     //pthread_mutex_unlock(entry->lock);
