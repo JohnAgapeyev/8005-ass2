@@ -351,7 +351,9 @@ void *performClientActions(void *args) {
     memset(input, 'a', MAX_INPUT_SIZE);
     time_t end_time = time(NULL) + connection_length;
     do {
+        pthread_mutex_lock(serverEntry->lock);
         sendEncryptedUserData(input, MAX_INPUT_SIZE, serverEntry);
+        pthread_mutex_unlock(serverEntry->lock);
     } while(time(NULL) < end_time);
     printf("Done sending\n");
 
