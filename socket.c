@@ -251,12 +251,16 @@ size_t readNBytes(const int sock, unsigned char *buf, size_t bufsize) {
     for (;;) {
         const int n = recv(sock, buf, bufsize, MSG_WAITALL);
         if (n == -1) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                //Nonblocking read and no more data so do nothing
-            } else {
-                perror("Socket read");
+            switch(errno) {
+                case EAGAIN:
+                    continue;
+                case EBADF:
+                case ENOTSOCK:
+                    return origBufSize - bufsize;
+                default:
+                    perror("Socket read");
+                    break;
             }
-            return origBufSize - bufsize;
         }
         if (n == 0) {
             //No more data to read, so do nothing

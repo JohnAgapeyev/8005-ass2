@@ -461,7 +461,7 @@ void startServer(void) {
     eventLoop(&epollfd);
 
     //for (size_t i = 0; i < 7; ++i) {
-        //pthread_join(threads[i], NULL);
+    //pthread_join(threads[i], NULL);
     //}
 
     close(epollfd);
