@@ -935,6 +935,10 @@ void handleIncomingPacket(struct client *src) {
             int len;
             for (;;) {
                 len = readNBytes(sock, tmpBuf, tmpSize);
+                if (len == 0) {
+                    handleSocketError(src);
+                    goto doneRead;
+                }
                 assert(len <= tmpSize);
                 if (len == tmpSize) {
                     debug_print_buffer("Raw Received packet: ", buffer, sizeToRead + sizeof(uint16_t));
@@ -950,6 +954,7 @@ void handleIncomingPacket(struct client *src) {
             }
         }
     }
+doneRead:
     //pthread_mutex_unlock(src->lock);
     free(buffer);
 }
