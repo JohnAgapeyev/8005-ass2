@@ -901,9 +901,9 @@ void handleIncomingPacket(struct client *src) {
         uint16_t sizeToRead = readPacketLength(sock);
         if (sizeToRead == 0) {
             //Client has left us
-	    pthread_mutex_unlock(src->lock);
+            pthread_mutex_unlock(src->lock);
             handleSocketError(src);
-	    pthread_mutex_lock(src->lock);
+            pthread_mutex_lock(src->lock);
             break;
         }
         memcpy(buffer, &sizeToRead, sizeof(uint16_t));
