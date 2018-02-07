@@ -62,20 +62,18 @@ struct client_args {
  * Remainder is text
  * Want the outgoing packet to be 4096 max, aka page size
  */
-#define MAX_INPUT_SIZE 4096 - IV_SIZE - TAG_SIZE - sizeof(uint16_t)
+#define MAX_INPUT_SIZE (uint16_t)(4096 - IV_SIZE - TAG_SIZE - sizeof(uint16_t))
 #define MAX_PACKET_SIZE MAX_INPUT_SIZE + IV_SIZE + TAG_SIZE + sizeof(uint16_t)
 
 extern bool isServer;
+extern bool isNormal;
+extern bool isSelect;
+extern bool isEpoll;
 extern EVP_PKEY *LongTermSigningKey;
 extern struct client **clientList;
 extern size_t clientCount;
 extern unsigned short port;
 extern int listenSock;
-// if epoll
-extern bool isEpoll;
-extern bool isSelect;
-extern bool isNormal;
-
 
 void network_init(void);
 void network_cleanup(void);

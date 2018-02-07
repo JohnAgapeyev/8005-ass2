@@ -71,6 +71,8 @@
 #include "socket.h"
 #include "network.h"
 
+int outputFD = -1;
+
 static void sighandler(int signo);
 
 static struct option long_options[] = {
@@ -87,13 +89,16 @@ static struct option long_options[] = {
 #define print_help() \
     do { \
     printf("usage options:\n"\
-            "\t [p]ort <1-65535>                - the port to use, default 1337\n"\
-            "\t [c]lient                        - run as client, exclusive with server\n"\
-            "\t [s]erver <normal|select|epoll>  - run as server, exclusive with client\n"\
-            "\t [i]p <url || ip>                - address to connect to\n"\
-            "\t [k]/count <1-ULLONG_MAX>        - Number of worker clients\n"\
-            "\t [t]ime <1-60>                   - Length of time in seconds for each connection\n"\
-            "\t [h]elp                          - this message\n"\
+            "\t [p]ort <1-65535>        - the port to use, default 1337\n"\
+            "\t [c]lient                - run as client, exclusive with server\n"\
+            "\t [s]erver <0-2>          - run as server, exclusive with client\n"\
+            "\t                         - 0 Multithreaded server\n"\
+            "\t                         - 1 Select server\n"\
+            "\t                         - 2 Epoll server\n"\
+            "\t [i]p <url || ip>        - address to connect to\n"\
+            "\t [k]/count <1-ULLONG_MAX>- Number of worker clients\n"\
+            "\t [t]ime <1-60>           - Length of time in seconds for each connection\n"\
+            "\t [h]elp                  - this message\n"\
             );\
     } while(0)
 
@@ -134,20 +139,14 @@ int main(int argc, char **argv) {
     bool isClient = false; //Temp bool used to check if both client and server is chosen
     isServer = false;
     isNormal = false;
-    isEpoll = false;
     isSelect = false;
+    isEpoll = false;
 
     const char *portString = NULL;
     const char *ipAddr = NULL;
 
     unsigned long long worker_count = 0;
     unsigned long connection_length = 0;
-
-    enum flag {
-        normal = '0',
-        select = '1',
-        epoll = '2',
-    };
     int val;
     int c;
     for (;;) {
@@ -162,14 +161,19 @@ int main(int argc, char **argv) {
                 break;
             case 's':
                 val = atoi(optarg);
-                if ((val = 0)){
+                isServer = true;
+                if((val = 0)){
+                    //normal
                     isNormal = true;
                 } else if((val = 1)){
-                    isEpoll = true;
-                } else if((val = 2)){
+                    //Select
                     isSelect = true;
+                } else if((val = 2)){
+                    //epoll
+                    isEpoll = true;
                 } else {
-                    //exit
+                    printf("Please enter a number between 0-2 to select server type");
+                    exit(0);
                 }
                 break;
             case 'p':

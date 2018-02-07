@@ -53,14 +53,20 @@
 #include "crypto.h"
 #include "macro.h"
 #include "main.h"
+#include "select.h"
 
 EVP_PKEY *LongTermSigningKey = NULL;
 bool isServer;
+bool isNormal;
+bool isSelect;
+bool isEpoll;
+fd_set fdset, backupset;
 struct client **clientList;
 size_t clientCount;
 size_t clientMax;
 unsigned short port;
 int listenSock;
+int maxfd;
 
 pthread_mutex_t clientLock;
 
@@ -327,38 +333,65 @@ void *performClientActions(void *args) {
     unsigned char *sharedSecret = exchangeKeys(serverEntry);
 
     debug_print_buffer("Shared secret: ", sharedSecret, SYMMETRIC_KEY_SIZE);
+    if(isEpoll){
+        int epollfd = createEpollFd();
 
-    int epollfd = createEpollFd();
+        struct epoll_event ev;
+        ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLONESHOT;
+        ev.data.ptr = serverEntry;
 
-    struct epoll_event ev;
-    ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLONESHOT;
-    ev.data.ptr = serverEntry;
+        addEpollSocket(epollfd, serverSock, &ev);
 
-    addEpollSocket(epollfd, serverSock, &ev);
+        pthread_t readThread;
+        pthread_create(&readThread, NULL, eventLoop, &epollfd);
 
-    pthread_t readThread;
-    pthread_create(&readThread, NULL, eventLoop, &epollfd);
+        unsigned char input[MAX_INPUT_SIZE];
+        memset(input, 'a', MAX_INPUT_SIZE);
+        time_t end_time = time(NULL) + connection_length;
+        do {
+            sendEncryptedUserData(input, MAX_INPUT_SIZE, serverEntry);
+        } while(time(NULL) < end_time);
+        printf("Done sending\n");
 
-    unsigned char input[MAX_INPUT_SIZE];
-    memset(input, 'a', MAX_INPUT_SIZE);
-    time_t end_time = time(NULL) + connection_length;
+        isRunning = false;
 
-        sendEncryptedUserData(input, MAX_INPUT_SIZE, serverEntry);
-    } while(time(NULL) < end_time);
-    printf("Done sending\n");
+        pthread_join(readThread, NULL);
 
-    isRunning = false;
+        //I don't like this, but the server errors trying to echo if we don't
+        //Maybe when we change how the sending is done, this will stop being an issue
+        sleep(1);
 
-    pthread_join(readThread, NULL);
+        shutdown(serverSock, SHUT_RDWR);
+        close(serverSock);
+        close(epollfd);
+    } else if(isSelect){
+        //TODO fix later
+        int selectfd = createSelectFd(fdset,newfd, maxfd);
+        pthread_t readThread;
+        pthread_create(&readThread, NULL, eventLoop, &selectfd);
 
-    //I don't like this, but the server errors trying to echo if we don't
-    //Maybe when we change how the sending is done, this will stop being an issue
-    sleep(1);
+        unsigned char input[MAX_INPUT_SIZE];
+        memset(input, 'a', MAX_INPUT_SIZE);
+        time_t end_time = time(NULL) + connection_length;
+        do {
+            // data, length, server
+            sendEncryptedUserData(input, MAX_INPUT_SIZE, serverEntry);
+        } while(time(NULL) < end_time);
+        printf("Done sending\n");
 
-    shutdown(serverSock, SHUT_RDWR);
-    close(serverSock);
-    close(epollfd);
-    return NULL;
+        isRunning = false;
+
+        pthread_join(readThread, NULL);
+
+        sleep(1);
+
+        shutdown(serverSock, SHUT_RDWR);
+        close(serverSock);
+        close(selectfd);
+    } else if(isNormal){
+
+    }
+       return NULL;
 }
 
 /*
@@ -435,7 +468,44 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
  */
 void startServer(void) {
     network_init();
+    if(isNormal){
 
+    } else if(isSelect){
+        FD_ZERO(&fdset);
+        maxfd =listenSock;
+        FD_SET(listenSock, &fdset);
+
+        setNonBlocking(listenSock);
+        pthread_t threads[7];
+        for(size_t i = 0; i < 7; ++i){
+            pthread_create(&threads[i], NULL, eventLoop, &listenSock);
+        }
+    } else if(isEpoll){
+        int epollfd = createEpollFd();
+
+        struct epoll_event ev;
+        ev.events = EPOLLIN | EPOLLET;
+        ev.data.ptr = NULL;
+
+        setNonBlocking(listenSock);
+
+        addEpollSocket(epollfd, listenSock, &ev);
+
+        pthread_t threads[7];
+        for (size_t i = 0; i < 7; ++i) {
+            pthread_create(&threads[i], NULL, eventLoop, &epollfd);
+        }
+
+        //TODO: Create threads here instead of calling eventloop directly
+        eventLoop(&epollfd);
+
+        //for (size_t i = 0; i < 7; ++i) {
+            //pthread_join(threads[i], NULL);
+        //}
+
+        close(epollfd);
+
+    }
     int epollfd = createEpollFd();
 
     struct epoll_event ev;
@@ -488,8 +558,21 @@ void startServer(void) {
  */
 void *eventLoop(void *epollfd) {
     int efd = *((int *)epollfd);
+    if(isNormal){
 
-    struct epoll_event *eventList = checked_calloc(MAX_EPOLL_EVENTS, sizeof(struct epoll_event));
+    } else if(isSelect){
+        while(isRunning){
+            waitForSelectEvent(fdset, maxfd);
+            for(int i = 0; i < maxfd; ++i){
+                if(FD_ISSET(i, &fdset)){
+                    handleIncomingConnection(i);
+                } else {
+                    handleIncomingPacket(i);
+                }
+            }
+        }
+    } else if(isEpoll){
+        struct epoll_event *eventList = checked_calloc(MAX_EPOLL_EVENTS, sizeof(struct epoll_event));
 
     while (isRunning) {
         int n = waitForEpollEvent(efd, eventList);
@@ -516,6 +599,8 @@ void *eventLoop(void *epollfd) {
         }
     }
     free(eventList);
+    }
+
     return NULL;
 }
 

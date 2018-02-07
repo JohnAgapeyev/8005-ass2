@@ -8,11 +8,12 @@
 #include "macro.h"
 #include "socket.h"
 
-void createSelectFd(fd_set* fd, int newfd, int* maxfd){
+int createSelectFd(fd_set* fd, int newfd, int* maxfd){
     FD_SET(newfd, fd);
     if(newfd > *maxfd){
         *maxfd = newfd;
     }
+    return newfd;
 }
 
 void waitForSelectEvent(fd_set * fd, int * maxfd){
