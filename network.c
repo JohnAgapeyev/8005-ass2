@@ -312,6 +312,7 @@ void *performClientActions(void *args) {
     const char *ip = ((struct client_args *) args)->ip;
     const char *portString = ((struct client_args *) args)->portString;
     int connection_length = ((struct client_args *) args)->connection_length;
+    int epollfd = ((struct client_args *) args)->epollfd;
 
     int serverSock = establishConnection(ip, portString);
     if (serverSock == -1) {
@@ -331,21 +332,11 @@ void *performClientActions(void *args) {
 
     debug_print_buffer("Shared secret: ", sharedSecret, SYMMETRIC_KEY_SIZE);
 
-    int epollfd = createEpollFd();
-
     struct epoll_event ev;
     ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
     ev.data.ptr = serverEntry;
 
     addEpollSocket(epollfd, serverSock, &ev);
-
-    //pthread_t readThread;
-    //pthread_create(&readThread, NULL, eventLoop, &epollfd);
-
-    pthread_t threads[7];
-    for (size_t i = 0; i < 7; ++i) {
-        pthread_create(&threads[i], NULL, eventLoop, &epollfd);
-    }
 
     unsigned char input[MAX_INPUT_SIZE];
     memset(input, 'a', MAX_INPUT_SIZE);
@@ -359,15 +350,12 @@ void *performClientActions(void *args) {
 
     isRunning = false;
 
-    //pthread_join(readThread, NULL);
-
     //I don't like this, but the server errors trying to echo if we don't
     //Maybe when we change how the sending is done, this will stop being an issue
     sleep(1);
 
     shutdown(serverSock, SHUT_RDWR);
     close(serverSock);
-    close(epollfd);
     return NULL;
 }
 
@@ -397,25 +385,39 @@ void *performClientActions(void *args) {
 void startClient(const char *ip, const char *portString, const unsigned long long worker_count, const unsigned long connection_length) {
     network_init();
 
-    pthread_t threads[worker_count];
+    pthread_t workerThreads[worker_count];
+
+    int epollfd = createEpollFd();
 
     struct client_args *testArgs = checked_malloc(sizeof(struct client_args));
     testArgs->ip = ip;
     testArgs->portString = portString;
     testArgs->connection_length = connection_length;
+    testArgs->epollfd = epollfd;
+
+    size_t core_count = 8;
+
+    pthread_t readThreads[core_count - 1];
+    for (size_t i = 0; i < core_count - 1; ++i) {
+        pthread_create(&readThreads[i], NULL, eventLoop, &epollfd);
+    }
 
     for (unsigned long long i = 0; i < worker_count; ++i) {
-        if (pthread_create(threads + i, NULL, performClientActions, testArgs) != 0) {
+        if (pthread_create(workerThreads + i, NULL, performClientActions, testArgs) != 0) {
             for (unsigned long long j = 0; j < i; ++j) {
-                pthread_kill(threads[j], SIGQUIT);
+                pthread_kill(workerThreads[j], SIGQUIT);
             }
             break;
         }
     }
     for (unsigned long long i = 0; i < worker_count; ++i) {
-        pthread_join(threads[i], NULL);
+        pthread_join(workerThreads[i], NULL);
+    }
+    for (unsigned long long i = 0; i < core_count - 1; ++i) {
+        pthread_join(readThreads[i], NULL);
     }
     free(testArgs);
+    close(epollfd);
     network_cleanup();
 }
 

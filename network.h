@@ -55,6 +55,7 @@ struct client_args {
     const char *ip;
     const char *portString;
     unsigned long connection_length;
+    int epollfd;
 };
 
 /*
