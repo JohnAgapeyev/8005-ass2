@@ -60,7 +60,7 @@ void setNonBlocking(const int sock);
 void setSocketBuffers(const int sock);
 void bindSocket(const int sock, const unsigned short port);
 int establishConnection(const char *address, const char *port);
-size_t readNBytes(const int sock, unsigned char *buf, size_t bufsize);
+ssize_t readNBytes(const int sock, unsigned char *buf, size_t bufsize);
 void rawSend(const int sock, const unsigned char *buffer, size_t bufSize);
 
 #endif

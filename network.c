@@ -646,12 +646,6 @@ void initClientStruct(struct client *newClient, int sock) {
  * HMAC is calculated over the ciphertext.
  */
 void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *dest) {
-    pthread_mutex_lock(&clientLock);
-	if (dest->enabled == false) {
-        pthread_mutex_unlock(&clientLock);
-		return;
-	}
-    pthread_mutex_unlock(&clientLock);
     /*
      * Mesg buffer that will be sent
      * mesgLen is self-explanatory
@@ -819,7 +813,6 @@ void handleIncomingConnection(const int efd) {
  * void
  */
 void handleSocketError(struct client *entry) {
-    //pthread_mutex_lock(entry->lock);
     pthread_mutex_lock(&clientLock);
     int sock = (entry) ? entry->socket : listenSock;
     fprintf(stderr, "Disconnection/error on socket %d\n", sock);
@@ -830,7 +823,6 @@ void handleSocketError(struct client *entry) {
     entry->enabled = false;
 
     pthread_mutex_unlock(&clientLock);
-    //pthread_mutex_unlock(entry->lock);
 }
 
 /*
@@ -906,37 +898,31 @@ uint16_t readPacketLength(const int sock) {
  * Handles the staggered and full read, before passing the packet off.
  */
 void handleIncomingPacket(struct client *src) {
-    //pthread_mutex_lock(src->lock);
-    pthread_mutex_lock(&clientLock);
-    if (src->enabled == false) {
-	    pthread_mutex_unlock(&clientLock);
-	    return;
-    }
-    pthread_mutex_unlock(&clientLock);
-    if (src->enabled == false) {
-	printf("How what why no\n");
-    }
     const int sock = src->socket;
     unsigned char *buffer = checked_malloc(MAX_PACKET_SIZE);
     for (;;) {
-        uint16_t sizeToRead = readPacketLength(sock);
-        if (sizeToRead == 0) {
+        int16_t sizeToRead = readPacketLength(sock);
+        if (sizeToRead == -1) {
             //Client has left us
-            //pthread_mutex_unlock(src->lock);
-            //handleSocketError(src);
-            //pthread_mutex_lock(src->lock);
+            handleSocketError(src);
             break;
         }
+	if (sizeToRead == 0) {
+		break;
+	}
         memcpy(buffer, &sizeToRead, sizeof(uint16_t));
         {
             unsigned char *tmpBuf = buffer + sizeof(uint16_t);
             uint16_t tmpSize = sizeToRead;
 
-            int len;
+            ssize_t len;
             for (;;) {
                 len = readNBytes(sock, tmpBuf, tmpSize);
                 if (len == 0) {
-                    //handleSocketError(src);
+                    goto doneRead;
+                }
+                if (len == -1) {
+                    handleSocketError(src);
                     goto doneRead;
                 }
                 assert(len <= tmpSize);
@@ -955,7 +941,6 @@ void handleIncomingPacket(struct client *src) {
         }
     }
 doneRead:
-    //pthread_mutex_unlock(src->lock);
     free(buffer);
 }
 

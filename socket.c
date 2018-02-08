@@ -246,23 +246,22 @@ int establishConnection(const char *address, const char *port) {
  * RETURNS:
  * size_t - The amount that was read
  */
-size_t readNBytes(const int sock, unsigned char *buf, size_t bufsize) {
+ssize_t readNBytes(const int sock, unsigned char *buf, size_t bufsize) {
     const size_t origBufSize = bufsize;
     for (;;) {
         const int n = recv(sock, buf, bufsize, 0);
         if (n == -1) {
             switch(errno) {
                 case EAGAIN:
-                    //return origBufSize - bufsize;
-                    break;
+                    return origBufSize - bufsize;
                 case EBADF:
                 case ENOTSOCK:
-                    break;
+                    //break;
                 default:
                     perror("Socket read");
                     break;
             }
-            return origBufSize - bufsize;
+            return -1;
         }
         if (n == 0) {
             //No more data to read, so do nothing
