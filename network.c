@@ -923,7 +923,7 @@ void handleIncomingPacket(struct client *src) {
         if (sizeToRead == 0) {
             //Client has left us
             //pthread_mutex_unlock(src->lock);
-            handleSocketError(src);
+            //handleSocketError(src);
             //pthread_mutex_lock(src->lock);
             break;
         }
@@ -936,7 +936,7 @@ void handleIncomingPacket(struct client *src) {
             for (;;) {
                 len = readNBytes(sock, tmpBuf, tmpSize);
                 if (len == 0) {
-                    handleSocketError(src);
+                    //handleSocketError(src);
                     goto doneRead;
                 }
                 assert(len <= tmpSize);
