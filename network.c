@@ -919,8 +919,9 @@ void handleIncomingPacket(struct client *src) {
 
             ssize_t len;
             for (;;) {
+                errno = 0;
                 len = readNBytes(sock, tmpBuf, tmpSize);
-                if (len == 0) {
+                if (len == 0 && errno != EAGAIN) {
                     goto doneRead;
                 }
                 if (len == -1) {

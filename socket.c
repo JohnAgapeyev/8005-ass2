@@ -249,6 +249,9 @@ int establishConnection(const char *address, const char *port) {
 ssize_t readNBytes(const int sock, unsigned char *buf, size_t bufsize) {
     const size_t origBufSize = bufsize;
     for (;;) {
+        if (bufsize == 0) {
+            break;
+        }
         const int n = recv(sock, buf, bufsize, 0);
         if (n == -1) {
             switch(errno) {
