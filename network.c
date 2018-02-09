@@ -34,6 +34,7 @@
  *
  */
 #include <pthread.h>
+#include <sched.h>
 #include <time.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -395,11 +396,18 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
     testArgs->connection_length = connection_length;
     testArgs->epollfd = epollfd;
 
-    size_t core_count = 8;
+    const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
+
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    cpu_set_t cpus;
 
     pthread_t readThreads[core_count - 1];
     for (size_t i = 0; i < core_count - 1; ++i) {
-        pthread_create(&readThreads[i], NULL, eventLoop, &epollfd);
+        CPU_ZERO(&cpus);
+        CPU_SET(i, &cpus);
+        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+        pthread_create(&readThreads[i], &attr, eventLoop, &epollfd);
     }
 
     for (unsigned long long i = 0; i < worker_count; ++i) {
@@ -458,9 +466,18 @@ void startServer(void) {
 
     addEpollSocket(epollfd, listenSock, &ev);
 
-    pthread_t threads[7];
-    for (size_t i = 0; i < 7; ++i) {
-        pthread_create(&threads[i], NULL, eventLoop, &epollfd);
+    const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
+
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    cpu_set_t cpus;
+
+    pthread_t threads[core_count - 1];
+    for (size_t i = 0; i < core_count - 1; ++i) {
+        CPU_ZERO(&cpus);
+        CPU_SET(i, &cpus);
+        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+        pthread_create(&threads[i], &attr, eventLoop, &epollfd);
     }
 
     //TODO: Create threads here instead of calling eventloop directly
@@ -509,15 +526,15 @@ void *eventLoop(void *epollfd) {
         assert(n != -1);
         for (int i = 0; i < n; ++i) {
             if (eventList[i].events & EPOLLERR || eventList[i].events & EPOLLHUP || eventList[i].events & EPOLLRDHUP) {
-		    pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
-                    handleSocketError(eventList[i].data.ptr);
-		    pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
+                handleSocketError(eventList[i].data.ptr);
+                pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
             } else if (eventList[i].events & EPOLLIN) {
                 if (eventList[i].data.ptr) {
                     //Regular read connection
-		    pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
+                    pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                     handleIncomingPacket(eventList[i].data.ptr);
-		    pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                    pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                 } else {
                     //Null data pointer means listen socket has incoming connection
                     handleIncomingConnection(efd);
@@ -909,9 +926,9 @@ void handleIncomingPacket(struct client *src) {
             handleSocketError(src);
             break;
         }
-	if (sizeToRead == 0) {
-		break;
-	}
+        if (sizeToRead == 0) {
+            break;
+        }
         memcpy(buffer, &sizeToRead, sizeof(uint16_t));
         {
             unsigned char *tmpBuf = buffer + sizeof(uint16_t);

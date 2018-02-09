@@ -418,6 +418,7 @@ bool verifyHMAC_Buffer(const unsigned char *mesg, size_t mlen, const unsigned ch
  * Encrypts using AES-256-CBC.
  * Ciphertext buffer must be at least plaintextlen + 16 bytes long.
  */
+#if 0
 size_t encrypt(const unsigned char *plaintext, size_t plaintextlen, const unsigned char *key, const unsigned char *iv, unsigned char *ciphertext) {
     EVP_CIPHER_CTX *ctx;
     nullCheckCryptoAPICall(ctx = EVP_CIPHER_CTX_new());
@@ -438,6 +439,7 @@ size_t encrypt(const unsigned char *plaintext, size_t plaintextlen, const unsign
 
     return ciphertextlen;
 }
+#endif
 
 /*
  * FUNCTION: decrypt
@@ -467,6 +469,7 @@ size_t encrypt(const unsigned char *plaintext, size_t plaintextlen, const unsign
  * NOTES:
  * plaintext must be at least ciphertextlen bytes big.
  */
+#if 0
 size_t decrypt(const unsigned char *ciphertext, size_t ciphertextlen, const unsigned char *key, const unsigned char *iv, unsigned char *plaintext) {
     EVP_CIPHER_CTX *ctx;
     nullCheckCryptoAPICall(ctx = EVP_CIPHER_CTX_new());
@@ -487,6 +490,7 @@ size_t decrypt(const unsigned char *ciphertext, size_t ciphertextlen, const unsi
 
     return plaintextlen;
 }
+#endif
 
 /*
  * FUNCTION: getPublicKey
