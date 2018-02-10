@@ -880,11 +880,37 @@ void handleSocketError(struct client *entry) {
  */
 uint16_t readPacketLength(const int sock) {
     uint16_t sizeToRead = 0;
+    int sizesize = sizeof(uint16_t);
+    unsigned char *output = (unsigned char *) &sizeToRead;
 
-    int n = readNBytes(sock, (unsigned char *) &sizeToRead, sizeof(uint16_t));
-    if (n == 0) {
-        //Client has left us
-        return 0;
+    for (;;) {
+        errno = 0;
+        int n = readNBytes(sock, output, sizesize);
+        if (n == -1) {
+            return -1;
+        }
+        if (n == 0 && errno != EAGAIN) {
+            //Client has left us
+            return 0;
+        }
+        if (n == 1 && sizesize < sizeof(uint16_t)) {
+            sizesize = 1;
+            ++output;
+            continue;
+        }
+        if (n == 2) {
+            if (sizeToRead > MAX_PACKET_SIZE) {
+                //printf("%zu\n", sizeToRead);
+                //fatal_error("Bad packet length");
+                return -1;
+            }
+            if (sizeToRead <= MAX_PACKET_SIZE - MAX_INPUT_SIZE) {
+                //printf("%zu\n", sizeToRead);
+                //fatal_error("Bad packet length");
+                return -1;
+            }
+            return sizeToRead;
+        }
     }
     if (sizeToRead > MAX_PACKET_SIZE) {
         return 0;
@@ -892,7 +918,7 @@ uint16_t readPacketLength(const int sock) {
     if (sizeToRead <= MAX_PACKET_SIZE - MAX_INPUT_SIZE) {
         return 0;
     }
-    assert(n == 2);
+    //assert(n == 2);
 
     assert(sizeToRead <= MAX_PACKET_SIZE);
     assert(sizeToRead != 0);
