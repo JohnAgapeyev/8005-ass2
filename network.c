@@ -33,6 +33,7 @@
  ***
  *
  */
+#define _GNU_SOURCE
 #include <pthread.h>
 #include <sched.h>
 #include <time.h>
@@ -155,10 +156,10 @@ void network_cleanup(void) {
  * void
  */
 void process_packet(const unsigned char * const buffer, const size_t bufsize, struct client *src) {
-#ifndef NDEBUG
     debug_print("Received packet of size %zu\n", bufsize);
     debug_print_buffer("Raw hex output: ", buffer, bufsize);
 
+#ifndef NDEBUG
     debug_print("\nText output: ");
     for (size_t i = 0; i < bufsize; ++i) {
         fprintf(stderr, "%c", buffer[i]);
@@ -409,19 +410,25 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
         pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
         pthread_create(&readThreads[i], &attr, eventLoop, &epollfd);
     }
+    pthread_attr_destroy(&attr);
 
     for (unsigned long long i = 0; i < worker_count; ++i) {
         if (pthread_create(workerThreads + i, NULL, performClientActions, testArgs) != 0) {
             for (unsigned long long j = 0; j < i; ++j) {
-                pthread_kill(workerThreads[j], SIGQUIT);
+                pthread_kill(workerThreads[j], SIGINT);
             }
             break;
         }
     }
+
+    eventLoop(&epollfd);
+
     for (unsigned long long i = 0; i < worker_count; ++i) {
+        pthread_kill(workerThreads[i], SIGINT);
         pthread_join(workerThreads[i], NULL);
     }
-    for (unsigned long long i = 0; i < core_count - 1; ++i) {
+    for (unsigned long long i = 0; i < core_count; ++i) {
+        pthread_kill(readThreads[i], SIGINT);
         pthread_join(readThreads[i], NULL);
     }
     free(testArgs);
@@ -479,13 +486,14 @@ void startServer(void) {
         pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
         pthread_create(&threads[i], &attr, eventLoop, &epollfd);
     }
+    pthread_attr_destroy(&attr);
 
-    //TODO: Create threads here instead of calling eventloop directly
     eventLoop(&epollfd);
 
-    //for (size_t i = 0; i < 7; ++i) {
-    //pthread_join(threads[i], NULL);
-    //}
+    for (size_t i = 0; i < core_count - 1; ++i) {
+        pthread_kill(threads[i], SIGINT);
+        pthread_join(threads[i], NULL);
+    }
 
     close(epollfd);
     network_cleanup();
