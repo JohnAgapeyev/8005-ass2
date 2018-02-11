@@ -364,7 +364,7 @@ keepReading:
             return 0;
         }
     }
-    if (n == bufsize) {
+    if ((size_t) n == bufsize) {
         return origBufSize;
     } else {
         bufsize -= n;

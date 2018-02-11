@@ -224,7 +224,7 @@ unsigned char *exchangeKeys(struct client *clientEntry) {
         readSigningKey(clientEntry->socket, clientEntry, pubKeyLen);
 
         uint16_t packetLength = ephemeralPubKeyLen + hmaclen + sizeof(uint16_t);
-        unsigned char *mesgBuffer = checked_malloc(packetLength);
+        unsigned char mesgBuffer[packetLength];
 
         if (!receiveAndVerifyKey(&clientEntry->socket, mesgBuffer, packetLength, ephemeralPubKeyLen, hmaclen)) {
             fatal_error("HMAC verification");
@@ -235,13 +235,12 @@ unsigned char *exchangeKeys(struct client *clientEntry) {
         sharedSecret = getSharedSecret(ephemeralKey, clientPubKey);
 
         EVP_PKEY_free(clientPubKey);
-        free(mesgBuffer);
     } else {
         readSigningKey(clientEntry->socket, clientEntry, pubKeyLen);
 
         uint16_t packetLength = ephemeralPubKeyLen + hmaclen + sizeof(uint16_t);
 
-        unsigned char *mesgBuffer = checked_malloc(packetLength);
+        unsigned char mesgBuffer[packetLength];
 
         if (!receiveAndVerifyKey(&clientEntry->socket, mesgBuffer, packetLength, ephemeralPubKeyLen, hmaclen)) {
             fatal_error("HMAC verification");
@@ -254,7 +253,6 @@ unsigned char *exchangeKeys(struct client *clientEntry) {
 
         sharedSecret = getSharedSecret(ephemeralKey, serverPubKey);
 
-        free(mesgBuffer);
         EVP_PKEY_free(serverPubKey);
     }
     clientEntry->sharedKey = sharedSecret;
@@ -680,7 +678,7 @@ void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, stru
      * TAG_SIZE is for the GCM tag
      * sizeof calls are related to header specific lengths
      */
-    unsigned char *out = checked_malloc(sizeof(uint16_t) + mesgLen + IV_SIZE + TAG_SIZE);
+    unsigned char out[sizeof(uint16_t) + mesgLen + IV_SIZE + TAG_SIZE];
 
     unsigned char iv[IV_SIZE];
     fillRandom(iv, IV_SIZE);
@@ -711,8 +709,6 @@ void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, stru
 
     //Write the packet to the socket
     rawSend(dest->socket, out, packetLength + sizeof(uint16_t));
-
-    free(out);
 }
 
 /*
@@ -751,7 +747,7 @@ void decryptReceivedUserData(const unsigned char *mesg, const size_t mesgLen, st
     memcpy(aad, mesg, sizeof(uint16_t));
     memcpy(aad + sizeof(uint16_t), mesg + mesgLen - TAG_SIZE - IV_SIZE, IV_SIZE);
 
-    unsigned char *plain = checked_malloc(mesgLen);
+    unsigned char plain[mesgLen];
     ssize_t plainLen = decrypt_aead(mesg + sizeof(uint16_t), mesgLen - TAG_SIZE - IV_SIZE - sizeof(uint16_t), aad, sizeof(uint16_t) + IV_SIZE,
             src->sharedKey, mesg + mesgLen - TAG_SIZE - IV_SIZE, mesg + mesgLen - TAG_SIZE, plain);
 
@@ -760,8 +756,6 @@ void decryptReceivedUserData(const unsigned char *mesg, const size_t mesgLen, st
     } else {
         process_packet(plain, plainLen, src);
     }
-
-    free(plain);
 }
 
 /*
@@ -929,10 +923,10 @@ int16_t readPacketLength(const int sock) {
 	int16_t sizeToRead = 0;
 	int n = spinRead(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
 	if (n == -1) {
-		return -1;		
+		return -1;
 	}
 	if (n == 0) {
-		return 0;		
+		return 0;
 	}
 	return sizeToRead;
 #endif
@@ -964,7 +958,7 @@ int16_t readPacketLength(const int sock) {
  */
 void handleIncomingPacket(struct client *src) {
     const int sock = src->socket;
-    unsigned char *buffer = checked_malloc(MAX_PACKET_SIZE);
+    unsigned char buffer[MAX_PACKET_SIZE];
     for (;;) {
         int16_t sizeToRead = readPacketLength(sock);
         if (sizeToRead == -1) {
@@ -986,11 +980,11 @@ void handleIncomingPacket(struct client *src) {
                 errno = 0;
                 len = readNBytes(sock, tmpBuf, tmpSize);
                 if (len == 0 && errno != EAGAIN) {
-                    goto doneRead;
+                    return;
                 }
                 if (len == -1) {
                     handleSocketError(src);
-                    goto doneRead;
+                    return;
                 }
                 assert(len <= tmpSize);
                 if (len == tmpSize) {
@@ -1011,19 +1005,17 @@ void handleIncomingPacket(struct client *src) {
         errno = 0;
         len = spinRead(sock, buffer + sizeof(uint16_t), sizeToRead);
         if (len == 0) {
-            goto doneRead;
+            return;
         }
         if (len == -1) {
             handleSocketError(src);
-            goto doneRead;
+            return;
         }
         debug_print_buffer("Raw Received packet: ", buffer, sizeToRead + sizeof(uint16_t));
         decryptReceivedUserData(buffer, sizeToRead + sizeof(uint16_t), src);
         break;
 #endif
     }
-doneRead:
-    free(buffer);
 }
 
 /*
