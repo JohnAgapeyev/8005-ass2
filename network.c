@@ -878,7 +878,8 @@ void handleSocketError(struct client *entry) {
  * This function reads only those two bytes, and returns them.
  * This allows a staggered read to accurately receive dynamic length packets.
  */
-uint16_t readPacketLength(const int sock) {
+int16_t readPacketLength(const int sock) {
+#if 0
     uint16_t sizeToRead = 0;
     int sizesize = sizeof(uint16_t);
     unsigned char *output = (unsigned char *) &sizeToRead;
@@ -900,14 +901,14 @@ uint16_t readPacketLength(const int sock) {
         }
         if (n == 2) {
             if (sizeToRead > MAX_PACKET_SIZE) {
-                //printf("%zu\n", sizeToRead);
-                //fatal_error("Bad packet length");
-                return -1;
+                printf("%zu\n", sizeToRead);
+                fatal_error("Bad packet length");
+                //return -1;
             }
             if (sizeToRead <= MAX_PACKET_SIZE - MAX_INPUT_SIZE) {
-                //printf("%zu\n", sizeToRead);
-                //fatal_error("Bad packet length");
-                return -1;
+                printf("%zu\n", sizeToRead);
+                fatal_error("Bad packet length");
+                //return -1;
             }
             return sizeToRead;
         }
@@ -924,6 +925,17 @@ uint16_t readPacketLength(const int sock) {
     assert(sizeToRead != 0);
 
     return sizeToRead;
+#else
+	int16_t sizeToRead = 0;
+	int n = spinRead(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
+	if (n == -1) {
+		return -1;		
+	}
+	if (n == 0) {
+		return 0;		
+	}
+	return sizeToRead;
+#endif
 }
 
 /*
@@ -964,6 +976,7 @@ void handleIncomingPacket(struct client *src) {
             break;
         }
         memcpy(buffer, &sizeToRead, sizeof(uint16_t));
+#if 0
         {
             unsigned char *tmpBuf = buffer + sizeof(uint16_t);
             uint16_t tmpSize = sizeToRead;
@@ -993,6 +1006,21 @@ void handleIncomingPacket(struct client *src) {
                 }
             }
         }
+#else
+        ssize_t len;
+        errno = 0;
+        len = spinRead(sock, buffer + sizeof(uint16_t), sizeToRead);
+        if (len == 0) {
+            goto doneRead;
+        }
+        if (len == -1) {
+            handleSocketError(src);
+            goto doneRead;
+        }
+        debug_print_buffer("Raw Received packet: ", buffer, sizeToRead + sizeof(uint16_t));
+        decryptReceivedUserData(buffer, sizeToRead + sizeof(uint16_t), src);
+        break;
+#endif
     }
 doneRead:
     free(buffer);

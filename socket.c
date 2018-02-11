@@ -339,3 +339,36 @@ void setSocketBuffers(const int sock) {
         fatal_error("setsockopt RCV_BUFFER");
     }
 }
+
+/**
+ * Reads bufsize bytes, and spins until it is received
+ */
+ssize_t spinRead(const int sock, unsigned char *buf, size_t bufsize) {
+    const size_t origBufSize = bufsize;
+    int n;
+keepReading:
+    if (bufsize == 0) {
+        return origBufSize;
+    }
+    errno = 0;
+    n = readNBytes(sock, buf, bufsize);
+    if (n == -1) {
+        //Read returned bad error
+        return -1;
+    }
+    if (n == 0) {
+        if (errno == EAGAIN) {
+            goto keepReading;
+        } else {
+            //Recv returned 0 without EAGAIN, client has left us
+            return 0;
+        }
+    }
+    if (n == bufsize) {
+        return origBufSize;
+    } else {
+        bufsize -= n;
+        buf += n;
+        goto keepReading;
+    }
+}
