@@ -856,12 +856,18 @@ void handleIncomingConnection(const int efd) {
 
         unsigned char *secretKey = exchangeKeys(newClientEntry);
         debug_print_buffer("Shared secret: ", secretKey, HASH_SIZE);
+        if(isNormal){
 
-        struct epoll_event ev;
-        ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLONESHOT;
-        ev.data.ptr = clientList[newClientIndex];
+        } else if(isSelect){
+          createSelectFd(fdset, sock, maxfd);
+        } else if(isEpoll){
+          struct epoll_event ev;
+          ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLONESHOT;
+          ev.data.ptr = clientList[newClientIndex];
 
-        addEpollSocket(efd, sock, &ev);
+          addEpollSocket(efd, sock, &ev);
+        }
+
     }
 }
 
