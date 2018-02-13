@@ -333,7 +333,7 @@ void *performClientActions(void *args) {
     debug_print_buffer("Shared secret: ", sharedSecret, SYMMETRIC_KEY_SIZE);
 
     struct epoll_event ev;
-    ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+    ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLOUT;
     ev.data.ptr = serverEntry;
 
     addEpollSocket(epollfd, serverSock, &ev);
@@ -341,12 +341,8 @@ void *performClientActions(void *args) {
     unsigned char input[MAX_INPUT_SIZE];
     memset(input, 'a', MAX_INPUT_SIZE);
     time_t end_time = time(NULL) + connection_length;
-    do {
-        pthread_mutex_lock(serverEntry->lock);
-        sendEncryptedUserData(input, MAX_INPUT_SIZE, serverEntry);
-        pthread_mutex_unlock(serverEntry->lock);
-    } while(time(NULL) < end_time);
-    printf("Done sending\n");
+
+    sleep(connection_length);
 
     isRunning = false;
 
@@ -535,15 +531,23 @@ void *eventLoop(void *epollfd) {
                 pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                 handleSocketError(eventList[i].data.ptr);
                 pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
-            } else if (eventList[i].events & EPOLLIN) {
-                if (eventList[i].data.ptr) {
-                    //Regular read connection
+            } else {
+                if (eventList[i].events & EPOLLIN) {
+                    if (eventList[i].data.ptr) {
+                        //Regular read connection
+                        pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
+                        handleIncomingPacket(eventList[i].data.ptr);
+                        pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                    } else {
+                        //Null data pointer means listen socket has incoming connection
+                        handleIncomingConnection(efd);
+                    }
+                }
+                if (eventList[i].events & EPOLLOUT) {
+                    unsigned char data[MAX_INPUT_SIZE];
                     pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
-                    handleIncomingPacket(eventList[i].data.ptr);
+                    sendEncryptedUserData(data, MAX_INPUT_SIZE, eventList[i].data.ptr);
                     pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
-                } else {
-                    //Null data pointer means listen socket has incoming connection
-                    handleIncomingConnection(efd);
                 }
             }
         }
