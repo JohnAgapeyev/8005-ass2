@@ -344,12 +344,6 @@ void *performClientActions(void *args) {
 
     sleep(connection_length);
 
-    isRunning = false;
-
-    //I don't like this, but the server errors trying to echo if we don't
-    //Maybe when we change how the sending is done, this will stop being an issue
-    sleep(1);
-
     shutdown(serverSock, SHUT_RDWR);
     close(serverSock);
     return NULL;
@@ -397,8 +391,8 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
     pthread_attr_init(&attr);
     cpu_set_t cpus;
 
-    pthread_t readThreads[core_count - 1];
-    for (size_t i = 0; i < core_count - 1; ++i) {
+    pthread_t readThreads[core_count];
+    for (size_t i = 0; i < core_count; ++i) {
         CPU_ZERO(&cpus);
         CPU_SET(i, &cpus);
         pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
@@ -415,7 +409,8 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
         }
     }
 
-    eventLoop(&epollfd);
+    sleep(connection_length);
+    isRunning = false;
 
     for (unsigned long long i = 0; i < worker_count; ++i) {
         pthread_kill(workerThreads[i], SIGINT);
