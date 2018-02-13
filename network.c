@@ -565,10 +565,17 @@ void *eventLoop(void *epollfd) {
             for(int i = 0; i < maxfd; ++i){
                 if(FD_ISSET(i, &fdset)){
                     if(i == (listenSock)){
+                        //is the socket from the listen socket?
                         handleIncomingConnection(i);
                     }
                 } else {
-                    handleIncomingPacket(i);
+                    //this is safe
+                    //not sure if this is the most efficient
+                    for(int k = 0; i < clientMax; ++k){
+                        if(clientList[k]->socket == i){
+                            handleIncomingConnection(clientList[k]);
+                        }
+                    }
                 }
             }
         }
@@ -860,7 +867,7 @@ void handleIncomingConnection(const int efd) {
         if(isNormal){
 
         } else if(isSelect){
-          createSelectFd(fdset, sock, maxfd);
+          createSelectFd(&fdset, sock, &maxfd);
         } else if(isEpoll){
           struct epoll_event ev;
           ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLONESHOT;
