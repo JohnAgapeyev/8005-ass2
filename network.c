@@ -365,10 +365,9 @@ void *performClientActions(void *args) {
         close(serverSock);
         close(epollfd);
     } else if(isSelect){
-        //TODO fix later
-        int selectfd = createSelectFd(fdset,newfd, maxfd);
+        //Might need a mutex lock here
         pthread_t readThread;
-        pthread_create(&readThread, NULL, eventLoop, &selectfd);
+        pthread_create(&readThread, NULL, eventLoop, NULL);
 
         unsigned char input[MAX_INPUT_SIZE];
         memset(input, 'a', MAX_INPUT_SIZE);
@@ -387,7 +386,6 @@ void *performClientActions(void *args) {
 
         shutdown(serverSock, SHUT_RDWR);
         close(serverSock);
-        close(selectfd);
     } else if(isNormal){
 
     }
@@ -471,9 +469,9 @@ void startServer(void) {
     if(isNormal){
 
     } else if(isSelect){
-        FD_ZERO(&fdset);
+        FD_ZERO(&backupset);
         maxfd =listenSock;
-        FD_SET(listenSock, &fdset);
+        FD_SET(listenSock, &backupset);
 
         setNonBlocking(listenSock);
         pthread_t threads[7];
@@ -562,10 +560,13 @@ void *eventLoop(void *epollfd) {
 
     } else if(isSelect){
         while(isRunning){
-            waitForSelectEvent(fdset, maxfd);
+            memcpy(&fdset,&backupset, sizeof(backupset));
+            waitForSelectEvent(&backupset, &maxfd);
             for(int i = 0; i < maxfd; ++i){
                 if(FD_ISSET(i, &fdset)){
-                    handleIncomingConnection(i);
+                    if(i == (listenSock)){
+                        handleIncomingConnection(i);
+                    }
                 } else {
                     handleIncomingPacket(i);
                 }
