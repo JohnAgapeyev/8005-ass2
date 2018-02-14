@@ -79,7 +79,8 @@ static struct option long_options[] = {
     {"port",    required_argument, 0, 'p'},
     {"help",    no_argument,       0, 'h'},
     {"client",  no_argument,       0, 'c'},
-    {"server",  required_argument, 0, 's'},
+    {"server",  no_argument, 0, 's'},
+    //{"server",  required_argument, 0, 's'},
     {"ip",      required_argument, 0, 'i'},
     {"count",   required_argument, 0, 'k'},
     {"time",    required_argument, 0, 't'},
@@ -160,9 +161,10 @@ int main(int argc, char **argv) {
                 isServer = false;
                 break;
             case 's':
-                val = atoi(optarg);
+                //val = atoi(optarg);
                 isServer = true;
-                if((val = 0)){
+                isSelect = true;
+                /*if((val = 0)){
                     //normal
                     isNormal = true;
                 } else if((val = 1)){
@@ -174,7 +176,7 @@ int main(int argc, char **argv) {
                 } else {
                     printf("Please enter a number between 0-2 to select server type");
                     exit(0);
-                }
+                }*/
                 break;
             case 'p':
                 portString = optarg;

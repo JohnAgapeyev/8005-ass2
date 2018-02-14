@@ -26,9 +26,7 @@ void waitForSelectEvent(fd_set * fd, int * maxfd){
 }
 
 size_t singleSelectReadInstance(const int sock, unsigned char *buffer, const size_t bufSize, fd_set* fd, int* maxfd ){
-    FD_ZERO(fd);
-    *maxfd = sock;
-    FD_SET(sock, fd);
+    createSelectFd(fd, sock, maxfd);
 
     size_t n = 0;
     int i;
@@ -37,9 +35,8 @@ size_t singleSelectReadInstance(const int sock, unsigned char *buffer, const siz
     for(i = 0; i <= max ; i++){
         if(FD_ISSET(i, fd)){
             if(i == sock){
-
-            } else {
                 n = readNBytes(sock, buffer, bufSize);
+            } else {
             }
         }
     }
