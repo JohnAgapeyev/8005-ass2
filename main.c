@@ -193,7 +193,7 @@ int main(int argc, char **argv) {
         print_help();
         return EXIT_SUCCESS;
     }
-    if (!isServer && (connection_length == 0 || connection_length > 60)) {
+    if (!isServer && (connection_length == 0 || connection_length > 600)) {
         print_help();
         return EXIT_SUCCESS;
     }
@@ -219,7 +219,7 @@ int main(int argc, char **argv) {
         exit(0);
     }
 
-    //limit.rlim_max = USHRT_MAX;
+    limit.rlim_max = USHRT_MAX;
     limit.rlim_cur = limit.rlim_max;
 
     printf("Setting soft limit: %lu\n", limit.rlim_cur);
@@ -229,10 +229,25 @@ int main(int argc, char **argv) {
         exit(0);
     }
 
+    if (getrlimit(RLIMIT_NPROC, &limit) != 0) {
+        printf("getrlimit() failed with errno=%d\n", errno);
+        exit(0);
+    }
+
+    //limit.rlim_max = USHRT_MAX;
+    limit.rlim_cur = limit.rlim_max;
+
+    printf("Setting soft limit: %lu\n", limit.rlim_cur);
+    if (setrlimit(RLIMIT_NPROC, &limit) != 0) {
+        printf("setrlimit() failed with errno=%d\n", errno);
+        exit(0);
+    }
+
     if (isServer) {
         listenSock = createSocket(AF_INET, SOCK_STREAM, 0);
         bindSocket(listenSock, port);
-        listen(listenSock, 10000);
+	printf("SOMAXCONN: %lu\n", SOMAXCONN);
+        listen(listenSock, SOMAXCONN);
         startServer();
         close(listenSock);
     } else {

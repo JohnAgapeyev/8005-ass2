@@ -196,7 +196,7 @@ size_t singleEpollReadInstance(const int sock, unsigned char *buffer, const size
         } else if (eventList[i].events & EPOLLHUP) {
             fatal_error("One off epoll socket closed");
         } else if (eventList[i].events & EPOLLIN) {
-            n = readNBytes(sock, buffer, bufSize);
+            n = spinRead(sock, buffer, bufSize);
         } else {
             fatal_error("Unknown epoll error");
         }

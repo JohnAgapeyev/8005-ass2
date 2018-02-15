@@ -360,6 +360,7 @@ keepReading:
         if (errno == EAGAIN) {
             goto keepReading;
         } else {
+		perror("SpinRead");
             //Recv returned 0 without EAGAIN, client has left us
             return 0;
         }

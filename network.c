@@ -313,35 +313,38 @@ void *performClientActions(void *args) {
     const char *portString = ((struct client_args *) args)->portString;
     int connection_length = ((struct client_args *) args)->connection_length;
     int epollfd = ((struct client_args *) args)->epollfd;
+    unsigned long long worker_count = ((struct client_args *) args)->worker_count;
+    for (unsigned long long i = 0; i < worker_count; ++i) {
+        int serverSock = establishConnection(ip, portString);
+        if (serverSock == -1) {
+            fatal_error("Unable to connect to server\n");
+        }
 
-    int serverSock = establishConnection(ip, portString);
-    if (serverSock == -1) {
-        fatal_error("Unable to connect to server\n");
+        setNonBlocking(serverSock);
+        setSocketBuffers(serverSock);
+
+        size_t clientNum = addClient(serverSock);
+
+        pthread_mutex_lock(&clientLock);
+        struct client *serverEntry = clientList[clientNum];
+        pthread_mutex_unlock(&clientLock);
+
+        unsigned char *sharedSecret = exchangeKeys(serverEntry);
+
+        printf("Handshake complete on socket %d\n", serverSock);
+
+        debug_print_buffer("Shared secret: ", sharedSecret, SYMMETRIC_KEY_SIZE);
+
+        struct epoll_event ev;
+        ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLOUT;
+        ev.data.ptr = serverEntry;
+
+        addEpollSocket(epollfd, serverSock, &ev);
     }
 
-    setNonBlocking(serverSock);
-    setSocketBuffers(serverSock);
 
-    size_t clientNum = addClient(serverSock);
-
-    pthread_mutex_lock(&clientLock);
-    struct client *serverEntry = clientList[clientNum];
-    pthread_mutex_unlock(&clientLock);
-
-    unsigned char *sharedSecret = exchangeKeys(serverEntry);
-
-    debug_print_buffer("Shared secret: ", sharedSecret, SYMMETRIC_KEY_SIZE);
-
-    struct epoll_event ev;
-    ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLOUT;
-    ev.data.ptr = serverEntry;
-
-    addEpollSocket(epollfd, serverSock, &ev);
-
-    sleep(connection_length);
-
-    shutdown(serverSock, SHUT_RDWR);
-    close(serverSock);
+    //shutdown(serverSock, SHUT_RDWR);
+    //close(serverSock);
     return NULL;
 }
 
@@ -396,22 +399,35 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
     }
     pthread_attr_destroy(&attr);
 
-    for (unsigned long long i = 0; i < worker_count; ++i) {
+    for (size_t i = 0; i < core_count; ++i) {
+        if (i == core_count - 1) {
+            testArgs->worker_count = (worker_count / core_count) + (worker_count % core_count);
+        } else {
+            testArgs->worker_count = worker_count / core_count;
+        }
         if (pthread_create(workerThreads + i, NULL, performClientActions, testArgs) != 0) {
+            printf("%lu\n", i);
+            perror("pthread create");
             for (unsigned long long j = 0; j < i; ++j) {
                 pthread_kill(workerThreads[j], SIGINT);
             }
             break;
         }
     }
+    for (unsigned long long i = 0; i < core_count; ++i) {
+        pthread_join(workerThreads[i], NULL);
+    }
 
     sleep(connection_length);
     isRunning = false;
 
-    for (unsigned long long i = 0; i < worker_count; ++i) {
+#if 0
+    for (unsigned long long i = 0; i < core_count; ++i) {
+	    printf("Killing workers\n");
         pthread_kill(workerThreads[i], SIGINT);
         pthread_join(workerThreads[i], NULL);
     }
+#endif
     for (unsigned long long i = 0; i < core_count; ++i) {
         pthread_kill(readThreads[i], SIGINT);
         pthread_join(readThreads[i], NULL);
@@ -868,15 +884,15 @@ void handleSocketError(struct client *entry) {
  * This allows a staggered read to accurately receive dynamic length packets.
  */
 int16_t readPacketLength(const int sock) {
-	int16_t sizeToRead = 0;
-	int n = spinRead(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
-	if (n == -1) {
-		return -1;
-	}
-	if (n == 0) {
-		return 0;
-	}
-	return sizeToRead;
+    int16_t sizeToRead = 0;
+    int n = spinRead(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
+    if (n == -1) {
+        return -1;
+    }
+    if (n == 0) {
+        return 0;
+    }
+    return sizeToRead;
 }
 
 /*
@@ -1035,6 +1051,11 @@ void readSigningKey(const int sock, struct client *clientEntry, const size_t key
     const uint16_t packetLength = keyLen + sizeof(uint16_t);
     unsigned char mesgBuffer[packetLength];
     size_t n = singleEpollReadInstance(sock, mesgBuffer, packetLength);
+
+    //printf("Signing key length: %d\n", n);
+    if (n == 0) {
+        perror("Signing key");
+    }
 
     debug_print_buffer("Received signing key: ", mesgBuffer, packetLength);
 
