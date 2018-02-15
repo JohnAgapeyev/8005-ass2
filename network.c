@@ -338,10 +338,6 @@ void *performClientActions(void *args) {
 
     addEpollSocket(epollfd, serverSock, &ev);
 
-    unsigned char input[MAX_INPUT_SIZE];
-    memset(input, 'a', MAX_INPUT_SIZE);
-    time_t end_time = time(NULL) + connection_length;
-
     sleep(connection_length);
 
     shutdown(serverSock, SHUT_RDWR);
@@ -872,53 +868,6 @@ void handleSocketError(struct client *entry) {
  * This allows a staggered read to accurately receive dynamic length packets.
  */
 int16_t readPacketLength(const int sock) {
-#if 0
-    uint16_t sizeToRead = 0;
-    int sizesize = sizeof(uint16_t);
-    unsigned char *output = (unsigned char *) &sizeToRead;
-
-    for (;;) {
-        errno = 0;
-        int n = readNBytes(sock, output, sizesize);
-        if (n == -1) {
-            return -1;
-        }
-        if (n == 0 && errno != EAGAIN) {
-            //Client has left us
-            return 0;
-        }
-        if (n == 1 && sizesize < sizeof(uint16_t)) {
-            sizesize = 1;
-            ++output;
-            continue;
-        }
-        if (n == 2) {
-            if (sizeToRead > MAX_PACKET_SIZE) {
-                printf("%zu\n", sizeToRead);
-                fatal_error("Bad packet length");
-                //return -1;
-            }
-            if (sizeToRead <= MAX_PACKET_SIZE - MAX_INPUT_SIZE) {
-                printf("%zu\n", sizeToRead);
-                fatal_error("Bad packet length");
-                //return -1;
-            }
-            return sizeToRead;
-        }
-    }
-    if (sizeToRead > MAX_PACKET_SIZE) {
-        return 0;
-    }
-    if (sizeToRead <= MAX_PACKET_SIZE - MAX_INPUT_SIZE) {
-        return 0;
-    }
-    //assert(n == 2);
-
-    assert(sizeToRead <= MAX_PACKET_SIZE);
-    assert(sizeToRead != 0);
-
-    return sizeToRead;
-#else
 	int16_t sizeToRead = 0;
 	int n = spinRead(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
 	if (n == -1) {
@@ -928,7 +877,6 @@ int16_t readPacketLength(const int sock) {
 		return 0;
 	}
 	return sizeToRead;
-#endif
 }
 
 /*
@@ -969,37 +917,6 @@ void handleIncomingPacket(struct client *src) {
             break;
         }
         memcpy(buffer, &sizeToRead, sizeof(uint16_t));
-#if 0
-        {
-            unsigned char *tmpBuf = buffer + sizeof(uint16_t);
-            uint16_t tmpSize = sizeToRead;
-
-            ssize_t len;
-            for (;;) {
-                errno = 0;
-                len = readNBytes(sock, tmpBuf, tmpSize);
-                if (len == 0 && errno != EAGAIN) {
-                    return;
-                }
-                if (len == -1) {
-                    handleSocketError(src);
-                    return;
-                }
-                assert(len <= tmpSize);
-                if (len == tmpSize) {
-                    debug_print_buffer("Raw Received packet: ", buffer, sizeToRead + sizeof(uint16_t));
-                    decryptReceivedUserData(buffer, sizeToRead + sizeof(uint16_t), src);
-                    break;
-                }
-                //Len must be less than tmpSize
-                if (len < tmpSize) {
-                    tmpBuf += len;
-                    tmpSize -= len;
-                    continue;
-                }
-            }
-        }
-#else
         ssize_t len;
         errno = 0;
         len = spinRead(sock, buffer + sizeof(uint16_t), sizeToRead);
@@ -1013,7 +930,6 @@ void handleIncomingPacket(struct client *src) {
         debug_print_buffer("Raw Received packet: ", buffer, sizeToRead + sizeof(uint16_t));
         decryptReceivedUserData(buffer, sizeToRead + sizeof(uint16_t), src);
         break;
-#endif
     }
 }
 
