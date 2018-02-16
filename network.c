@@ -36,6 +36,7 @@
 #define _GNU_SOURCE
 #include <pthread.h>
 #include <sched.h>
+#include <fcntl.h>
 #include <time.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -552,6 +553,7 @@ void *eventLoop(void *epollfd) {
                 }
                 if (eventList[i].events & EPOLLOUT) {
                     unsigned char data[MAX_INPUT_SIZE];
+		    memset(data, 0xff, MAX_INPUT_SIZE);
                     //pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                     sendEncryptedUserData(data, MAX_INPUT_SIZE, eventList[i].data.ptr);
                     //pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
@@ -689,7 +691,8 @@ void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, stru
      * TAG_SIZE is for the GCM tag
      * sizeof calls are related to header specific lengths
      */
-    unsigned char out[sizeof(uint16_t) + mesgLen + IV_SIZE + TAG_SIZE];
+    //unsigned char out[sizeof(uint16_t) + mesgLen + IV_SIZE + TAG_SIZE];
+    unsigned char *out = aligned_alloc(4096, sizeof(uint16_t) + mesgLen + IV_SIZE + TAG_SIZE);
 
     unsigned char iv[IV_SIZE];
     fillRandom(iv, IV_SIZE);
@@ -718,8 +721,44 @@ void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, stru
     debug_print_buffer("Sent tag: ", out + sizeof(uint16_t) + mesgLen + IV_SIZE, TAG_SIZE);
     debug_print_buffer("Sending packets with contents: ", out, packetLength + sizeof(uint16_t));
 
+    struct timespec start, end;
+
+#if 1
+        int fd[2];
+        if (pipe(fd) < 0) {
+            fatal_error("pipe");
+        }
+	    clock_gettime(CLOCK_REALTIME, &start);
+
+	    struct iovec io;
+	    io.iov_base = out;
+	    io.iov_len = sizeof(uint16_t) + packetLength;
+
+        if (vmsplice(fd[1], &io, 1, SPLICE_F_GIFT) <= 0) {
+            perror("splice");
+        }
+        if (splice(fd[0], NULL, dest->socket, NULL, packetLength + sizeof(uint16_t), SPLICE_F_MOVE) <= 0) {
+            perror("splice");
+        }
+
+	    clock_gettime(CLOCK_REALTIME, &end);
+
+	    uint64_t diff = ((end.tv_sec - start.tv_sec) * 1000 * 1000 * 1000) + end.tv_nsec - start.tv_nsec;
+	    printf("Time: %llu\n", diff);
+
+        close(fd[0]);
+        close(fd[1]);
+#else
     //Write the packet to the socket
+	    clock_gettime(CLOCK_REALTIME, &start);
     rawSend(dest->socket, out, packetLength + sizeof(uint16_t));
+	    clock_gettime(CLOCK_REALTIME, &end);
+
+	    uint64_t diff = ((end.tv_sec - start.tv_sec) * 1000 * 1000 * 1000) + end.tv_nsec - start.tv_nsec;
+	    printf("Time: %llu\n", diff);
+#endif
+
+	free(out);
 }
 
 /*
@@ -923,6 +962,10 @@ void handleIncomingPacket(struct client *src) {
     const int sock = src->socket;
     unsigned char buffer[MAX_PACKET_SIZE];
     for (;;) {
+#if 0
+	    struct timespec start, end;
+
+	    clock_gettime(CLOCK_REALTIME, &start);
         int16_t sizeToRead = readPacketLength(sock);
         if (sizeToRead == -1) {
             //Client has left us
@@ -943,9 +986,39 @@ void handleIncomingPacket(struct client *src) {
             handleSocketError(src);
             return;
         }
+	    clock_gettime(CLOCK_REALTIME, &end);
+	    uint64_t diff = ((end.tv_sec - start.tv_sec) * 1000 * 1000 * 1000) + end.tv_nsec - start.tv_nsec;
+	    printf("Time: %llu\n", diff);
         debug_print_buffer("Raw Received packet: ", buffer, sizeToRead + sizeof(uint16_t));
         decryptReceivedUserData(buffer, sizeToRead + sizeof(uint16_t), src);
         break;
+#else
+	    struct timespec start, end;
+
+        int fd[2];
+        if (pipe(fd) < 0) {
+            fatal_error("pipe");
+        }
+	    clock_gettime(CLOCK_REALTIME, &start);
+
+        if (splice(sock, NULL, fd[1], NULL, MAX_PACKET_SIZE, SPLICE_F_MOVE) <= 0) {
+            perror("splice");
+        }
+	    clock_gettime(CLOCK_REALTIME, &end);
+
+        if (read(fd[0], buffer, MAX_PACKET_SIZE) != MAX_PACKET_SIZE) {
+            perror("read splice");
+        }
+
+	    uint64_t diff = ((end.tv_sec - start.tv_sec) * 1000 * 1000 * 1000) + end.tv_nsec - start.tv_nsec;
+	    //printf("Time: %llu\n", diff);
+
+        decryptReceivedUserData(buffer, MAX_PACKET_SIZE, src);
+
+        close(fd[0]);
+        close(fd[1]);
+        break;
+#endif
     }
 }
 
