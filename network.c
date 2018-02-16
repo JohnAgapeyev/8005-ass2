@@ -318,6 +318,7 @@ void *performClientActions(void *args) {
     const char *ip = ((struct client_args *) args)->ip;
     const char *portString = ((struct client_args *) args)->portString;
     int connection_length = ((struct client_args *) args)->connection_length;
+    int epollfd = ((struct client_args *) args)->epollfd;
 
     if(isNormal){
 

@@ -245,7 +245,7 @@ int main(int argc, char **argv) {
     //limit.rlim_max = USHRT_MAX;
     limit.rlim_cur = limit.rlim_max;
 
-    printf("Setting soft limit: %d\n", limit.rlim_cur);
+    printf("Setting soft limit: %lu\n", limit.rlim_cur);
 
     if (setrlimit(RLIMIT_NOFILE, &limit) != 0) {
         printf("setrlimit() failed with errno=%d\n", errno);
