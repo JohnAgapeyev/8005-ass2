@@ -319,6 +319,12 @@ void *performClientActions(void *args) {
     const char *portString = ((struct client_args *) args)->portString;
     int connection_length = ((struct client_args *) args)->connection_length;
     int epollfd = ((struct client_args *) args)->epollfd;
+    unsigned long long worker_count = ((struct client_args *) args)->worker_count;
+    for (unsigned long long i = 0; i < worker_count; ++i) {
+        int serverSock = establishConnection(ip, portString);
+        if (serverSock == -1) {
+            fatal_error("Unable to connect to server\n");
+        }
 
     if(isNormal){
 
@@ -340,9 +346,9 @@ void *performClientActions(void *args) {
       unsigned char *sharedSecret = exchangeKeys(serverEntry);
 
       debug_print_buffer("Shared secret: ", sharedSecret, SYMMETRIC_KEY_SIZE);
-      sleep(connection_length);
-      shutdown(serverSock, SHUT_RDWR);
-      close(serverSock);
+      //sleep(connection_length);
+      //shutdown(serverSock, SHUT_RDWR);
+      //close(serverSock);
     } else if(isEpoll){
       int epollfd = ((struct client_args *) args)->epollfd;
 
@@ -369,9 +375,9 @@ void *performClientActions(void *args) {
       ev.data.ptr = serverEntry;
 
       addEpollSocket(epollfd, serverSock, &ev);
-      sleep(connection_length);
-      shutdown(serverSock, SHUT_RDWR);
-      close(serverSock);
+      //sleep(connection_length);
+      //shutdown(serverSock, SHUT_RDWR);
+      //close(serverSock);
     }
     return NULL;
 }
@@ -427,22 +433,35 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
     }
     pthread_attr_destroy(&attr);
 
-    for (unsigned long long i = 0; i < worker_count; ++i) {
+    for (size_t i = 0; i < core_count; ++i) {
+        if (i == core_count - 1) {
+            testArgs->worker_count = (worker_count / core_count) + (worker_count % core_count);
+        } else {
+            testArgs->worker_count = worker_count / core_count;
+        }
         if (pthread_create(workerThreads + i, NULL, performClientActions, testArgs) != 0) {
+            printf("%lu\n", i);
+            perror("pthread create");
             for (unsigned long long j = 0; j < i; ++j) {
                 pthread_kill(workerThreads[j], SIGINT);
             }
             break;
         }
     }
+    for (unsigned long long i = 0; i < core_count; ++i) {
+        pthread_join(workerThreads[i], NULL);
+    }
 
     sleep(connection_length);
     isRunning = false;
 
-    for (unsigned long long i = 0; i < worker_count; ++i) {
+#if 0
+    for (unsigned long long i = 0; i < core_count; ++i) {
+	    printf("Killing workers\n");
         pthread_kill(workerThreads[i], SIGINT);
         pthread_join(workerThreads[i], NULL);
     }
+#endif
     for (unsigned long long i = 0; i < core_count; ++i) {
         pthread_kill(readThreads[i], SIGINT);
         pthread_join(readThreads[i], NULL);
@@ -614,9 +633,9 @@ void *eventLoop(void *epollfd) {
           assert(n != -1);
           for (int i = 0; i < n; ++i) {
               if (eventList[i].events & EPOLLERR || eventList[i].events & EPOLLHUP || eventList[i].events & EPOLLRDHUP) {
-                  pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
+                  //pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                   handleSocketError(eventList[i].data.ptr);
-                  pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                  //pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
               } else {
                   if (eventList[i].events & EPOLLIN) {
                       if (eventList[i].data.ptr) {
@@ -631,9 +650,9 @@ void *eventLoop(void *epollfd) {
                   }
                   if (eventList[i].events & EPOLLOUT) {
                       unsigned char data[MAX_INPUT_SIZE];
-                      pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
+                      //pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                       sendEncryptedUserData(data, MAX_INPUT_SIZE, eventList[i].data.ptr);
-                      pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                      //pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                   }
               }
           }
@@ -969,63 +988,15 @@ void handleSocketError(struct client *entry) {
  * This allows a staggered read to accurately receive dynamic length packets.
  */
 int16_t readPacketLength(const int sock) {
-#if 0
-    uint16_t sizeToRead = 0;
-    int sizesize = sizeof(uint16_t);
-    unsigned char *output = (unsigned char *) &sizeToRead;
-
-    for (;;) {
-        errno = 0;
-        int n = readNBytes(sock, output, sizesize);
-        if (n == -1) {
-            return -1;
-        }
-        if (n == 0 && errno != EAGAIN) {
-            //Client has left us
-            return 0;
-        }
-        if (n == 1 && sizesize < sizeof(uint16_t)) {
-            sizesize = 1;
-            ++output;
-            continue;
-        }
-        if (n == 2) {
-            if (sizeToRead > MAX_PACKET_SIZE) {
-                printf("%zu\n", sizeToRead);
-                fatal_error("Bad packet length");
-                //return -1;
-            }
-            if (sizeToRead <= MAX_PACKET_SIZE - MAX_INPUT_SIZE) {
-                printf("%zu\n", sizeToRead);
-                fatal_error("Bad packet length");
-                //return -1;
-            }
-            return sizeToRead;
-        }
+    int16_t sizeToRead = 0;
+    int n = spinRead(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
+    if (n == -1) {
+        return -1;
     }
-    if (sizeToRead > MAX_PACKET_SIZE) {
+    if (n == 0) {
         return 0;
     }
-    if (sizeToRead <= MAX_PACKET_SIZE - MAX_INPUT_SIZE) {
-        return 0;
-    }
-    //assert(n == 2);
-
-    assert(sizeToRead <= MAX_PACKET_SIZE);
-    assert(sizeToRead != 0);
-
     return sizeToRead;
-#else
-	int16_t sizeToRead = 0;
-	int n = spinRead(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
-	if (n == -1) {
-		return -1;
-	}
-	if (n == 0) {
-		return 0;
-	}
-	return sizeToRead;
-#endif
 }
 
 /*
@@ -1066,37 +1037,6 @@ void handleIncomingPacket(struct client *src) {
             break;
         }
         memcpy(buffer, &sizeToRead, sizeof(uint16_t));
-#if 0
-        {
-            unsigned char *tmpBuf = buffer + sizeof(uint16_t);
-            uint16_t tmpSize = sizeToRead;
-
-            ssize_t len;
-            for (;;) {
-                errno = 0;
-                len = readNBytes(sock, tmpBuf, tmpSize);
-                if (len == 0 && errno != EAGAIN) {
-                    return;
-                }
-                if (len == -1) {
-                    handleSocketError(src);
-                    return;
-                }
-                assert(len <= tmpSize);
-                if (len == tmpSize) {
-                    debug_print_buffer("Raw Received packet: ", buffer, sizeToRead + sizeof(uint16_t));
-                    decryptReceivedUserData(buffer, sizeToRead + sizeof(uint16_t), src);
-                    break;
-                }
-                //Len must be less than tmpSize
-                if (len < tmpSize) {
-                    tmpBuf += len;
-                    tmpSize -= len;
-                    continue;
-                }
-            }
-        }
-#else
         ssize_t len;
         errno = 0;
         len = spinRead(sock, buffer + sizeof(uint16_t), sizeToRead);
@@ -1110,7 +1050,6 @@ void handleIncomingPacket(struct client *src) {
         debug_print_buffer("Raw Received packet: ", buffer, sizeToRead + sizeof(uint16_t));
         decryptReceivedUserData(buffer, sizeToRead + sizeof(uint16_t), src);
         break;
-#endif
     }
 }
 
@@ -1216,6 +1155,11 @@ void readSigningKey(const int sock, struct client *clientEntry, const size_t key
     const uint16_t packetLength = keyLen + sizeof(uint16_t);
     unsigned char mesgBuffer[packetLength];
     size_t n = singleEpollReadInstance(sock, mesgBuffer, packetLength);
+
+    //printf("Signing key length: %d\n", n);
+    if (n == 0) {
+        perror("Signing key");
+    }
 
     debug_print_buffer("Received signing key: ", mesgBuffer, packetLength);
 

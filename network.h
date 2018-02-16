@@ -56,6 +56,7 @@ struct client_args {
     const char *portString;
     unsigned long connection_length;
     int epollfd;
+    unsigned long long worker_count;
 };
 
 /*
