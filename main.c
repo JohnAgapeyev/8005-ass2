@@ -79,8 +79,7 @@ static struct option long_options[] = {
     {"port",    required_argument, 0, 'p'},
     {"help",    no_argument,       0, 'h'},
     {"client",  no_argument,       0, 'c'},
-    {"server",  no_argument, 0, 's'},
-    //{"server",  required_argument, 0, 's'},
+    {"server",  required_argument, 0, 's'},
     {"ip",      required_argument, 0, 'i'},
     {"count",   required_argument, 0, 'k'},
     {"time",    required_argument, 0, 't'},
@@ -139,6 +138,7 @@ int main(int argc, char **argv) {
 
     bool isClient = false; //Temp bool used to check if both client and server is chosen
     isServer = false;
+    isServer = false;
     isNormal = false;
     isSelect = false;
     isEpoll = false;
@@ -148,6 +148,7 @@ int main(int argc, char **argv) {
 
     unsigned long long worker_count = 0;
     unsigned long connection_length = 0;
+
     int val;
     int c;
     for (;;) {
@@ -161,22 +162,22 @@ int main(int argc, char **argv) {
                 isServer = false;
                 break;
             case 's':
-                //val = atoi(optarg);
-                isServer = true;
-                isSelect = true;
-                /*if((val = 0)){
-                    //normal
-                    isNormal = true;
+            val = atoi(optarg);
+            isServer = true;
+            isSelect = true;
+                if((val = 0)){
+                  //normal
+                  isNormal = true;
                 } else if((val = 1)){
-                    //Select
-                    isSelect = true;
+                  //Select
+                  isSelect = true;
                 } else if((val = 2)){
-                    //epoll
-                    isEpoll = true;
+                  //epoll
+                  isEpoll = true;
                 } else {
-                    printf("Please enter a number between 0-2 to select server type");
-                    exit(0);
-                }*/
+                  printf("Please enter a number between 0-2 to select server type");
+                  exit(0);
+                }
                 break;
             case 'p':
                 portString = optarg;

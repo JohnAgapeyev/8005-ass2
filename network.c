@@ -33,7 +33,9 @@
  ***
  *
  */
+#define _GNU_SOURCE
 #include <pthread.h>
+#include <sched.h>
 #include <time.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -60,7 +62,7 @@ bool isServer;
 bool isNormal;
 bool isSelect;
 bool isEpoll;
-fd_set fdset, backupset;
+fd_set rdset, rdsetbackup, wrset,wrsetbackup;
 struct client **clientList;
 size_t clientCount;
 size_t clientMax;
@@ -127,6 +129,8 @@ void network_cleanup(void) {
             OPENSSL_clear_free(clientList[i]->sharedKey, SYMMETRIC_KEY_SIZE);
             EVP_PKEY_free(clientList[i]->signingKey);
             free(clientList[i]);
+            pthread_mutex_destroy(clientList[i]->lock);
+            free(clientList[i]->lock);
         }
     }
     pthread_mutex_destroy(&clientLock);
@@ -158,10 +162,10 @@ void network_cleanup(void) {
  * void
  */
 void process_packet(const unsigned char * const buffer, const size_t bufsize, struct client *src) {
-#ifndef NDEBUG
     debug_print("Received packet of size %zu\n", bufsize);
     debug_print_buffer("Raw hex output: ", buffer, bufsize);
 
+#ifndef NDEBUG
     debug_print("\nText output: ");
     for (size_t i = 0; i < bufsize; ++i) {
         fprintf(stderr, "%c", buffer[i]);
@@ -226,7 +230,7 @@ unsigned char *exchangeKeys(struct client *clientEntry) {
         readSigningKey(clientEntry->socket, clientEntry, pubKeyLen);
 
         uint16_t packetLength = ephemeralPubKeyLen + hmaclen + sizeof(uint16_t);
-        unsigned char *mesgBuffer = checked_malloc(packetLength);
+        unsigned char mesgBuffer[packetLength];
 
         if (!receiveAndVerifyKey(&clientEntry->socket, mesgBuffer, packetLength, ephemeralPubKeyLen, hmaclen)) {
             fatal_error("HMAC verification");
@@ -237,13 +241,12 @@ unsigned char *exchangeKeys(struct client *clientEntry) {
         sharedSecret = getSharedSecret(ephemeralKey, clientPubKey);
 
         EVP_PKEY_free(clientPubKey);
-        free(mesgBuffer);
     } else {
         readSigningKey(clientEntry->socket, clientEntry, pubKeyLen);
 
         uint16_t packetLength = ephemeralPubKeyLen + hmaclen + sizeof(uint16_t);
 
-        unsigned char *mesgBuffer = checked_malloc(packetLength);
+        unsigned char mesgBuffer[packetLength];
 
         if (!receiveAndVerifyKey(&clientEntry->socket, mesgBuffer, packetLength, ephemeralPubKeyLen, hmaclen)) {
             fatal_error("HMAC verification");
@@ -256,7 +259,6 @@ unsigned char *exchangeKeys(struct client *clientEntry) {
 
         sharedSecret = getSharedSecret(ephemeralKey, serverPubKey);
 
-        free(mesgBuffer);
         EVP_PKEY_free(serverPubKey);
     }
     clientEntry->sharedKey = sharedSecret;
@@ -317,79 +319,60 @@ void *performClientActions(void *args) {
     const char *portString = ((struct client_args *) args)->portString;
     int connection_length = ((struct client_args *) args)->connection_length;
 
-    int serverSock = establishConnection(ip, portString);
-    if (serverSock == -1) {
-        fatal_error("Unable to connect to server\n");
-    }
+    if(isNormal){
 
-    setNonBlocking(serverSock);
-
-    size_t clientNum = addClient(serverSock);
-
-    pthread_mutex_lock(&clientLock);
-    struct client *serverEntry = clientList[clientNum];
-    pthread_mutex_unlock(&clientLock);
-
-    unsigned char *sharedSecret = exchangeKeys(serverEntry);
-
-    debug_print_buffer("Shared secret: ", sharedSecret, SYMMETRIC_KEY_SIZE);
-    if(isEpoll){
-        int epollfd = createEpollFd();
-
-        struct epoll_event ev;
-        ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLONESHOT;
-        ev.data.ptr = serverEntry;
-
-        addEpollSocket(epollfd, serverSock, &ev);
-
-        pthread_t readThread;
-        pthread_create(&readThread, NULL, eventLoop, &epollfd);
-
-        unsigned char input[MAX_INPUT_SIZE];
-        memset(input, 'a', MAX_INPUT_SIZE);
-        time_t end_time = time(NULL) + connection_length;
-        do {
-            sendEncryptedUserData(input, MAX_INPUT_SIZE, serverEntry);
-        } while(time(NULL) < end_time);
-        printf("Done sending\n");
-
-        isRunning = false;
-
-        pthread_join(readThread, NULL);
-
-        //I don't like this, but the server errors trying to echo if we don't
-        //Maybe when we change how the sending is done, this will stop being an issue
-        sleep(1);
-
-        shutdown(serverSock, SHUT_RDWR);
-        close(serverSock);
-        close(epollfd);
     } else if(isSelect){
-        //Might need a mutex lock here
-        pthread_t readThread;
-        pthread_create(&readThread, NULL, eventLoop, NULL);
+      int serverSock = establishConnection(ip, portString);
+      if (serverSock == -1) {
+          fatal_error("Unable to connect to server\n");
+      }
 
-        unsigned char input[MAX_INPUT_SIZE];
-        memset(input, 'a', MAX_INPUT_SIZE);
-        time_t end_time = time(NULL) + connection_length;
-        do {
-            // data, length, server
-            sendEncryptedUserData(input, MAX_INPUT_SIZE, serverEntry);
-        } while(time(NULL) < end_time);
-        printf("Done sending\n");
+      setNonBlocking(serverSock);
+      setSocketBuffers(serverSock);
 
-        isRunning = false;
+      size_t clientNum = addClient(serverSock);
 
-        pthread_join(readThread, NULL);
+      pthread_mutex_lock(&clientLock);
+      struct client *serverEntry = clientList[clientNum];
+      pthread_mutex_unlock(&clientLock);
 
-        sleep(1);
+      unsigned char *sharedSecret = exchangeKeys(serverEntry);
 
-        shutdown(serverSock, SHUT_RDWR);
-        close(serverSock);
-    } else if(isNormal){
+      debug_print_buffer("Shared secret: ", sharedSecret, SYMMETRIC_KEY_SIZE);
+      sleep(connection_length);
+      shutdown(serverSock, SHUT_RDWR);
+      close(serverSock);
+    } else if(isEpoll){
+      int epollfd = ((struct client_args *) args)->epollfd;
 
+      int serverSock = establishConnection(ip, portString);
+      if (serverSock == -1) {
+          fatal_error("Unable to connect to server\n");
+      }
+
+      setNonBlocking(serverSock);
+      setSocketBuffers(serverSock);
+
+      size_t clientNum = addClient(serverSock);
+
+      pthread_mutex_lock(&clientLock);
+      struct client *serverEntry = clientList[clientNum];
+      pthread_mutex_unlock(&clientLock);
+
+      unsigned char *sharedSecret = exchangeKeys(serverEntry);
+
+      debug_print_buffer("Shared secret: ", sharedSecret, SYMMETRIC_KEY_SIZE);
+
+      struct epoll_event ev;
+      ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLOUT;
+      ev.data.ptr = serverEntry;
+
+      addEpollSocket(epollfd, serverSock, &ev);
+      sleep(connection_length);
+      shutdown(serverSock, SHUT_RDWR);
+      close(serverSock);
     }
-       return NULL;
+    return NULL;
 }
 
 /*
@@ -418,25 +401,53 @@ void *performClientActions(void *args) {
 void startClient(const char *ip, const char *portString, const unsigned long long worker_count, const unsigned long connection_length) {
     network_init();
 
-    pthread_t threads[worker_count];
+    pthread_t workerThreads[worker_count];
+
+    int epollfd = createEpollFd();
 
     struct client_args *testArgs = checked_malloc(sizeof(struct client_args));
     testArgs->ip = ip;
     testArgs->portString = portString;
     testArgs->connection_length = connection_length;
+    testArgs->epollfd = epollfd;
+
+    const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
+
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    cpu_set_t cpus;
+
+    pthread_t readThreads[core_count];
+    for (size_t i = 0; i < core_count; ++i) {
+        CPU_ZERO(&cpus);
+        CPU_SET(i, &cpus);
+        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+        pthread_create(&readThreads[i], &attr, eventLoop, &epollfd);
+    }
+    pthread_attr_destroy(&attr);
 
     for (unsigned long long i = 0; i < worker_count; ++i) {
-        if (pthread_create(threads + i, NULL, performClientActions, testArgs) != 0) {
+        if (pthread_create(workerThreads + i, NULL, performClientActions, testArgs) != 0) {
             for (unsigned long long j = 0; j < i; ++j) {
-                pthread_kill(threads[j], SIGQUIT);
+                pthread_kill(workerThreads[j], SIGINT);
             }
             break;
         }
     }
+
+    sleep(connection_length);
+    isRunning = false;
+
     for (unsigned long long i = 0; i < worker_count; ++i) {
-        pthread_join(threads[i], NULL);
+        pthread_kill(workerThreads[i], SIGINT);
+        pthread_join(workerThreads[i], NULL);
+    }
+    for (unsigned long long i = 0; i < core_count; ++i) {
+        pthread_kill(readThreads[i], SIGINT);
+        pthread_join(readThreads[i], NULL);
     }
     free(testArgs);
+    close(epollfd);
     network_cleanup();
 }
 
@@ -469,64 +480,70 @@ void startServer(void) {
     if(isNormal){
 
     } else if(isSelect){
-        FD_ZERO(&backupset);
-        maxfd =listenSock;
-        FD_SET(listenSock, &backupset);
+      FD_ZERO(&rdsetbackup);
+      FD_ZERO(&wrsetbackup);
+      maxfd = listenSock;
+      FD_SET(listenSock, &rdsetbackup);
 
-        setNonBlocking(listenSock);
-        pthread_t threads[7];
-        for(size_t i = 0; i < 7; ++i){
-            pthread_create(&threads[i], NULL, eventLoop, &listenSock);
-        }
+      setNonBlocking(listenSock);
+
+      const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
+
+      pthread_attr_t attr;
+      pthread_attr_init(&attr);
+      cpu_set_t cpus;
+
+      pthread_t threads[core_count - 1];
+      for (size_t i = 0; i < core_count - 1; ++i) {
+          CPU_ZERO(&cpus);
+          CPU_SET(i, &cpus);
+          pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+          pthread_create(&threads[i], &attr, eventLoop, &listenSock);
+      }
+      pthread_attr_destroy(&attr);
+
+      eventLoop(&listenSock);
+
+      for (size_t i = 0; i < core_count - 1; ++i) {
+          pthread_kill(threads[i], SIGINT);
+          pthread_join(threads[i], NULL);
+      }
+
     } else if(isEpoll){
-        int epollfd = createEpollFd();
+      int epollfd = createEpollFd();
 
-        struct epoll_event ev;
-        ev.events = EPOLLIN | EPOLLET;
-        ev.data.ptr = NULL;
+      struct epoll_event ev;
+      ev.events = EPOLLIN | EPOLLET;
+      ev.data.ptr = NULL;
 
-        setNonBlocking(listenSock);
+      setNonBlocking(listenSock);
 
-        addEpollSocket(epollfd, listenSock, &ev);
+      addEpollSocket(epollfd, listenSock, &ev);
 
-        pthread_t threads[7];
-        for (size_t i = 0; i < 7; ++i) {
-            pthread_create(&threads[i], NULL, eventLoop, &epollfd);
-        }
+      const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
 
-        //TODO: Create threads here instead of calling eventloop directly
-        eventLoop(&epollfd);
+      pthread_attr_t attr;
+      pthread_attr_init(&attr);
+      cpu_set_t cpus;
 
-        //for (size_t i = 0; i < 7; ++i) {
-            //pthread_join(threads[i], NULL);
-        //}
+      pthread_t threads[core_count - 1];
+      for (size_t i = 0; i < core_count - 1; ++i) {
+          CPU_ZERO(&cpus);
+          CPU_SET(i, &cpus);
+          pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+          pthread_create(&threads[i], &attr, eventLoop, &epollfd);
+      }
+      pthread_attr_destroy(&attr);
 
-        close(epollfd);
+      eventLoop(&epollfd);
 
+      for (size_t i = 0; i < core_count - 1; ++i) {
+          pthread_kill(threads[i], SIGINT);
+          pthread_join(threads[i], NULL);
+      }
+
+      close(epollfd);
     }
-    int epollfd = createEpollFd();
-
-    struct epoll_event ev;
-    ev.events = EPOLLIN | EPOLLET;
-    ev.data.ptr = NULL;
-
-    setNonBlocking(listenSock);
-
-    addEpollSocket(epollfd, listenSock, &ev);
-
-    pthread_t threads[7];
-    for (size_t i = 0; i < 7; ++i) {
-        pthread_create(&threads[i], NULL, eventLoop, &epollfd);
-    }
-
-    //TODO: Create threads here instead of calling eventloop directly
-    eventLoop(&epollfd);
-
-    //for (size_t i = 0; i < 7; ++i) {
-        //pthread_join(threads[i], NULL);
-    //}
-
-    close(epollfd);
     network_cleanup();
 }
 
@@ -556,60 +573,73 @@ void startServer(void) {
  */
 void *eventLoop(void *epollfd) {
     int efd = *((int *)epollfd);
+
     if(isNormal){
 
     } else if(isSelect){
-        while(isRunning){
-            memcpy(&fdset,&backupset, sizeof(backupset));
-            waitForSelectEvent(&backupset, &maxfd);
-            for(int i = 0; i < maxfd; ++i){
-                if(FD_ISSET(i, &fdset)){
-                    if(i == (listenSock)){
-                        //is the socket from the listen socket?
-                        handleIncomingConnection(i);
-                    }
+      while (isRunning) {
+          memcpy(&rdset,&rdsetbackup, sizeof(rdsetbackup));
+          memcpy(&wrset,&wrsetbackup, sizeof(wrsetbackup));
+          waitForSelectEvent(&rdset, &wrset,&maxfd);
+          for (int i = 0; i < maxfd; ++i) {
+              if(FD_ISSET(i,&rdset)){
+                if(i ==(listenSock)){
+                  handleIncomingConnection(i);
                 } else {
-                    //this is safe
-                    //not sure if this is the most efficient
-                    for(int k = 0; i < clientMax; ++k){
-                        if(clientList[k]->socket == i){
-                            handleIncomingConnection(clientList[k]);
-                        }
+                  for(int k = 0; i < clientMax; ++k){
+                      if(clientList[k]->socket == i){
+                        pthread_mutex_lock((struct client *)clientList[k]->lock);
+                          handleIncomingPacket(clientList[k]);
+                          pthread_mutex_unlock((struct client *)clientList[k]->lock);
+                      }
+                  }
+                }
+              } else if(FD_ISSET(i,&wrset)){
+                    for(int j = 0; j < clientMax; ++j){
+                        unsigned char data[MAX_INPUT_SIZE];
+                        pthread_mutex_lock(((struct client *)clientList[j]->lock));
+                        sendEncryptedUserData(data, MAX_INPUT_SIZE, clientList[j]);
+                        pthread_mutex_unlock(((struct client *)clientList[j]->lock));
                     }
+              }
                 }
-            }
-        }
-    } else if(isEpoll){
-        struct epoll_event *eventList = checked_calloc(MAX_EPOLL_EVENTS, sizeof(struct epoll_event));
-
-    while (isRunning) {
-        int n = waitForEpollEvent(efd, eventList);
-        //n can't be -1 because the handling for that is done in waitForEpollEvent
-        assert(n != -1);
-        for (int i = 0; i < n; ++i) {
-            if (eventList[i].events & EPOLLERR || eventList[i].events & EPOLLHUP || eventList[i].events & EPOLLRDHUP) {
-                handleSocketError(eventList[i].data.ptr);
-            } else if (eventList[i].events & EPOLLIN) {
-                if (eventList[i].data.ptr) {
-                    //Regular read connection
-                    handleIncomingPacket(eventList[i].data.ptr);
-
-                    struct epoll_event ev;
-                    ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLONESHOT;
-                    ev.data.ptr = eventList[i].data.ptr;
-
-                    epoll_ctl(efd, EPOLL_CTL_MOD, ((struct client *) eventList[i].data.ptr)->socket, &ev);
-                } else {
-                    //Null data pointer means listen socket has incoming connection
-                    handleIncomingConnection(efd);
                 }
-            }
-        }
-    }
-    free(eventList);
-    }
+                 }else if(isEpoll){
+      struct epoll_event *eventList = checked_calloc(MAX_EPOLL_EVENTS, sizeof(struct epoll_event));
 
-    return NULL;
+      while (isRunning) {
+          int n = waitForEpollEvent(efd, eventList);
+          //n can't be -1 because the handling for that is done in waitForEpollEvent
+          assert(n != -1);
+          for (int i = 0; i < n; ++i) {
+              if (eventList[i].events & EPOLLERR || eventList[i].events & EPOLLHUP || eventList[i].events & EPOLLRDHUP) {
+                  pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
+                  handleSocketError(eventList[i].data.ptr);
+                  pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+              } else {
+                  if (eventList[i].events & EPOLLIN) {
+                      if (eventList[i].data.ptr) {
+                          //Regular read connection
+                          pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
+                          handleIncomingPacket(eventList[i].data.ptr);
+                          pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                      } else {
+                          //Null data pointer means listen socket has incoming connection
+                          handleIncomingConnection(efd);
+                      }
+                  }
+                  if (eventList[i].events & EPOLLOUT) {
+                      unsigned char data[MAX_INPUT_SIZE];
+                      pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
+                      sendEncryptedUserData(data, MAX_INPUT_SIZE, eventList[i].data.ptr);
+                      pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                  }
+              }
+          }
+      }
+      free(eventList);
+    }
+       return NULL;
 }
 
 /*
@@ -694,6 +724,8 @@ void initClientStruct(struct client *newClient, int sock) {
     newClient->socket = sock;
     newClient->sharedKey = NULL;
     newClient->signingKey = NULL;
+    newClient->lock = checked_malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init(newClient->lock, NULL);
     newClient->enabled = true;
 }
 
@@ -736,7 +768,7 @@ void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, stru
      * TAG_SIZE is for the GCM tag
      * sizeof calls are related to header specific lengths
      */
-    unsigned char *out = checked_malloc(sizeof(uint16_t) + mesgLen + IV_SIZE + TAG_SIZE);
+    unsigned char out[sizeof(uint16_t) + mesgLen + IV_SIZE + TAG_SIZE];
 
     unsigned char iv[IV_SIZE];
     fillRandom(iv, IV_SIZE);
@@ -767,8 +799,6 @@ void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, stru
 
     //Write the packet to the socket
     rawSend(dest->socket, out, packetLength + sizeof(uint16_t));
-
-    free(out);
 }
 
 /*
@@ -807,7 +837,7 @@ void decryptReceivedUserData(const unsigned char *mesg, const size_t mesgLen, st
     memcpy(aad, mesg, sizeof(uint16_t));
     memcpy(aad + sizeof(uint16_t), mesg + mesgLen - TAG_SIZE - IV_SIZE, IV_SIZE);
 
-    unsigned char *plain = checked_malloc(mesgLen);
+    unsigned char plain[mesgLen];
     ssize_t plainLen = decrypt_aead(mesg + sizeof(uint16_t), mesgLen - TAG_SIZE - IV_SIZE - sizeof(uint16_t), aad, sizeof(uint16_t) + IV_SIZE,
             src->sharedKey, mesg + mesgLen - TAG_SIZE - IV_SIZE, mesg + mesgLen - TAG_SIZE, plain);
 
@@ -816,8 +846,6 @@ void decryptReceivedUserData(const unsigned char *mesg, const size_t mesgLen, st
     } else {
         process_packet(plain, plainLen, src);
     }
-
-    free(plain);
 }
 
 /*
@@ -856,6 +884,7 @@ void handleIncomingConnection(const int efd) {
         }
 
         setNonBlocking(sock);
+        setSocketBuffers(sock);
 
         size_t newClientIndex = addClient(sock);
         pthread_mutex_lock(&clientLock);
@@ -867,15 +896,14 @@ void handleIncomingConnection(const int efd) {
         if(isNormal){
 
         } else if(isSelect){
-          createSelectFd(&fdset, sock, &maxfd);
+            createSelectFD(&rdset, sock, &maxfd);
         } else if(isEpoll){
-          struct epoll_event ev;
-          ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLONESHOT;
-          ev.data.ptr = clientList[newClientIndex];
+             struct epoll_event ev;
+            ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+            ev.data.ptr = newClientEntry;
 
-          addEpollSocket(efd, sock, &ev);
+            addEpollSocket(efd, sock, &ev);
         }
-
     }
 }
 
@@ -909,6 +937,7 @@ void handleSocketError(struct client *entry) {
     close(sock);
 
     entry->enabled = false;
+
     pthread_mutex_unlock(&clientLock);
 }
 
@@ -938,20 +967,64 @@ void handleSocketError(struct client *entry) {
  * This function reads only those two bytes, and returns them.
  * This allows a staggered read to accurately receive dynamic length packets.
  */
-uint16_t readPacketLength(const int sock) {
+int16_t readPacketLength(const int sock) {
+#if 0
     uint16_t sizeToRead = 0;
+    int sizesize = sizeof(uint16_t);
+    unsigned char *output = (unsigned char *) &sizeToRead;
 
-    int n = readNBytes(sock, (unsigned char *) &sizeToRead, sizeof(uint16_t));
-    if (n == 0) {
-        //Client has left us
+    for (;;) {
+        errno = 0;
+        int n = readNBytes(sock, output, sizesize);
+        if (n == -1) {
+            return -1;
+        }
+        if (n == 0 && errno != EAGAIN) {
+            //Client has left us
+            return 0;
+        }
+        if (n == 1 && sizesize < sizeof(uint16_t)) {
+            sizesize = 1;
+            ++output;
+            continue;
+        }
+        if (n == 2) {
+            if (sizeToRead > MAX_PACKET_SIZE) {
+                printf("%zu\n", sizeToRead);
+                fatal_error("Bad packet length");
+                //return -1;
+            }
+            if (sizeToRead <= MAX_PACKET_SIZE - MAX_INPUT_SIZE) {
+                printf("%zu\n", sizeToRead);
+                fatal_error("Bad packet length");
+                //return -1;
+            }
+            return sizeToRead;
+        }
+    }
+    if (sizeToRead > MAX_PACKET_SIZE) {
         return 0;
     }
-    assert(n == 2);
+    if (sizeToRead <= MAX_PACKET_SIZE - MAX_INPUT_SIZE) {
+        return 0;
+    }
+    //assert(n == 2);
 
     assert(sizeToRead <= MAX_PACKET_SIZE);
     assert(sizeToRead != 0);
 
     return sizeToRead;
+#else
+	int16_t sizeToRead = 0;
+	int n = spinRead(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
+	if (n == -1) {
+		return -1;
+	}
+	if (n == 0) {
+		return 0;
+	}
+	return sizeToRead;
+#endif
 }
 
 /*
@@ -980,21 +1053,34 @@ uint16_t readPacketLength(const int sock) {
  */
 void handleIncomingPacket(struct client *src) {
     const int sock = src->socket;
-    unsigned char *buffer = checked_malloc(MAX_PACKET_SIZE);
+    unsigned char buffer[MAX_PACKET_SIZE];
     for (;;) {
-        uint16_t sizeToRead = readPacketLength(sock);
-        if (sizeToRead == 0) {
+        int16_t sizeToRead = readPacketLength(sock);
+        if (sizeToRead == -1) {
             //Client has left us
+            handleSocketError(src);
+            break;
+        }
+        if (sizeToRead == 0) {
             break;
         }
         memcpy(buffer, &sizeToRead, sizeof(uint16_t));
+#if 0
         {
             unsigned char *tmpBuf = buffer + sizeof(uint16_t);
             uint16_t tmpSize = sizeToRead;
 
-            int len;
+            ssize_t len;
             for (;;) {
+                errno = 0;
                 len = readNBytes(sock, tmpBuf, tmpSize);
+                if (len == 0 && errno != EAGAIN) {
+                    return;
+                }
+                if (len == -1) {
+                    handleSocketError(src);
+                    return;
+                }
                 assert(len <= tmpSize);
                 if (len == tmpSize) {
                     debug_print_buffer("Raw Received packet: ", buffer, sizeToRead + sizeof(uint16_t));
@@ -1009,8 +1095,22 @@ void handleIncomingPacket(struct client *src) {
                 }
             }
         }
+#else
+        ssize_t len;
+        errno = 0;
+        len = spinRead(sock, buffer + sizeof(uint16_t), sizeToRead);
+        if (len == 0) {
+            return;
+        }
+        if (len == -1) {
+            handleSocketError(src);
+            return;
+        }
+        debug_print_buffer("Raw Received packet: ", buffer, sizeToRead + sizeof(uint16_t));
+        decryptReceivedUserData(buffer, sizeToRead + sizeof(uint16_t), src);
+        break;
+#endif
     }
-    free(buffer);
 }
 
 /*

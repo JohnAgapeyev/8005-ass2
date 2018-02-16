@@ -55,6 +55,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/fcntl.h>
+#include <netinet/tcp.h>
 #include <netdb.h>
 #include <string.h>
 #include <stdio.h>
@@ -245,17 +246,25 @@ int establishConnection(const char *address, const char *port) {
  * RETURNS:
  * size_t - The amount that was read
  */
-size_t readNBytes(const int sock, unsigned char *buf, size_t bufsize) {
+ssize_t readNBytes(const int sock, unsigned char *buf, size_t bufsize) {
     const size_t origBufSize = bufsize;
     for (;;) {
+        if (bufsize == 0) {
+            break;
+        }
         const int n = recv(sock, buf, bufsize, 0);
         if (n == -1) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                //Nonblocking read and no more data so do nothing
-            } else {
-                perror("Socket read");
+            switch(errno) {
+                case EAGAIN:
+                    return origBufSize - bufsize;
+                case EBADF:
+                case ENOTSOCK:
+                    //break;
+                default:
+                    perror("Socket read");
+                    break;
             }
-            return origBufSize - bufsize;
+            return -1;
         }
         if (n == 0) {
             //No more data to read, so do nothing
@@ -302,10 +311,12 @@ start:
                 goto start;
                 break;
             case EPIPE:
+            case ECONNRESET:
                 //Other end has left us, do nothing
                 return;
             default:
-                fatal_error("Socket send");
+                //fatal_error("Socket send");
+                perror("Socket send");
                 break;
         }
     }
@@ -318,3 +329,46 @@ start:
     }
 }
 
+void setSocketBuffers(const int sock) {
+    //4 MiB
+    unsigned long long buffer_size = 1024 * 1024 * 40;
+    if (setsockopt(sock, SOL_SOCKET, SO_SNDBUFFORCE, &buffer_size, sizeof(unsigned long long)) == -1) {
+        fatal_error("setsockopt SND_BUFFER");
+    }
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVBUFFORCE, &buffer_size, sizeof(unsigned long long)) == -1) {
+        fatal_error("setsockopt RCV_BUFFER");
+    }
+}
+
+/**
+ * Reads bufsize bytes, and spins until it is received
+ */
+ssize_t spinRead(const int sock, unsigned char *buf, size_t bufsize) {
+    const size_t origBufSize = bufsize;
+    int n;
+keepReading:
+    if (bufsize == 0) {
+        return origBufSize;
+    }
+    errno = 0;
+    n = readNBytes(sock, buf, bufsize);
+    if (n == -1) {
+        //Read returned bad error
+        return -1;
+    }
+    if (n == 0) {
+        if (errno == EAGAIN) {
+            goto keepReading;
+        } else {
+            //Recv returned 0 without EAGAIN, client has left us
+            return 0;
+        }
+    }
+    if ((size_t) n == bufsize) {
+        return origBufSize;
+    } else {
+        bufsize -= n;
+        buf += n;
+        goto keepReading;
+    }
+}

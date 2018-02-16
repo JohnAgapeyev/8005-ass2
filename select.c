@@ -8,35 +8,37 @@
 #include "macro.h"
 #include "socket.h"
 
-int createSelectFd(fd_set* fd, int newfd, int* maxfd){
+void createSelectFd(fd_set* fd, int newfd, int* maxfd){
     FD_SET(newfd, fd);
     if(newfd > *maxfd){
         *maxfd = newfd;
     }
-    return newfd;
 }
 
-void waitForSelectEvent(fd_set * fd, int * maxfd){
+void waitForSelectEvent(fd_set* rdset, fd_set* rwset, int * maxfd){
     int n;
 
-    if((n = select(*maxfd+1,fd, NULL, NULL, NULL)) < 0){
+    if((n = select(*maxfd+1,rdset, rwset, NULL, NULL)) < 0){
         perror("select error");
     }
 
 }
 
 size_t singleSelectReadInstance(const int sock, unsigned char *buffer, const size_t bufSize, fd_set* fd, int* maxfd ){
-    createSelectFd(fd, sock, maxfd);
+    FD_ZERO(fd);
+    *maxfd = sock;
+    FD_SET(sock, fd);
 
     size_t n = 0;
     int i;
-    waitForSelectEvent(fd, maxfd);
+    //waitForSelectEvent(fd, maxfd);
     int max = *maxfd;
     for(i = 0; i <= max ; i++){
         if(FD_ISSET(i, fd)){
             if(i == sock){
-                n = readNBytes(sock, buffer, bufSize);
+
             } else {
+                n = readNBytes(sock, buffer, bufSize);
             }
         }
     }

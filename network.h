@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <pthread.h>
 #include <openssl/evp.h>
 #include "crypto.h"
 
@@ -47,12 +48,14 @@ struct client {
     unsigned char *sharedKey;
     EVP_PKEY *signingKey;
     bool enabled;
+    pthread_mutex_t *lock;
 };
 
 struct client_args {
     const char *ip;
     const char *portString;
     unsigned long connection_length;
+    int epollfd;
 };
 
 /*
@@ -69,6 +72,7 @@ extern bool isServer;
 extern bool isNormal;
 extern bool isSelect;
 extern bool isEpoll;
+extern bool isServer;
 extern EVP_PKEY *LongTermSigningKey;
 extern struct client **clientList;
 extern size_t clientCount;
@@ -91,7 +95,7 @@ void sendReliablePacket(const unsigned char *mesg, const size_t mesgLen, struct 
 void handleIncomingConnection(const int efd);
 void handleSocketError(struct client *entry);
 void handleIncomingPacket(struct client *src);
-uint16_t readPacketLength(const int sock);
+int16_t readPacketLength(const int sock);
 void sendSigningKey(const int sock, const unsigned char *key, const size_t keyLen);
 void sendEphemeralKey(const int sock, const unsigned char *key, const size_t keyLen, const unsigned char *hmac, const size_t hmacLen);
 void readSigningKey(const int sock, struct client *clientEntry, const size_t keyLen);
