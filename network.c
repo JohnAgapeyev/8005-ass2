@@ -318,22 +318,17 @@ void *performClientActions(void *args) {
     const char *ip = ((struct client_args *) args)->ip;
     const char *portString = ((struct client_args *) args)->portString;
     int connection_length = ((struct client_args *) args)->connection_length;
-    int epollfd = ((struct client_args *) args)->epollfd;
+    int serverSock=0;
+    if(isNormal){
+
+    } else if(isSelect){
     unsigned long long worker_count = ((struct client_args *) args)->worker_count;
     for (unsigned long long i = 0; i < worker_count; ++i) {
         int serverSock = establishConnection(ip, portString);
         if (serverSock == -1) {
             fatal_error("Unable to connect to server\n");
         }
-
-    if(isNormal){
-
-    } else if(isSelect){
-      int serverSock = establishConnection(ip, portString);
-      if (serverSock == -1) {
-          fatal_error("Unable to connect to server\n");
-      }
-
+    }
       setNonBlocking(serverSock);
       setSocketBuffers(serverSock);
 
@@ -350,23 +345,28 @@ void *performClientActions(void *args) {
       //shutdown(serverSock, SHUT_RDWR);
       //close(serverSock);
     } else if(isEpoll){
-      int epollfd = ((struct client_args *) args)->epollfd;
-
-      int serverSock = establishConnection(ip, portString);
-      if (serverSock == -1) {
-          fatal_error("Unable to connect to server\n");
-      }
+        int epollfd = ((struct client_args *) args)->epollfd;
+        unsigned long long worker_count = ((struct client_args *) args)->worker_count;
+        for (unsigned long long i = 0; i < worker_count; ++i) {
+        int serverSock = establishConnection(ip, portString);
+        if (serverSock == -1) {
+            fatal_error("Unable to connect to server\n");
+        }
 
       setNonBlocking(serverSock);
       setSocketBuffers(serverSock);
 
       size_t clientNum = addClient(serverSock);
 
+      printf("Handshake complete on socket %d\n", serverSock);
+
       pthread_mutex_lock(&clientLock);
       struct client *serverEntry = clientList[clientNum];
       pthread_mutex_unlock(&clientLock);
 
       unsigned char *sharedSecret = exchangeKeys(serverEntry);
+
+      printf("Handshake complete on socket %d\n", serverSock);
 
       debug_print_buffer("Shared secret: ", sharedSecret, SYMMETRIC_KEY_SIZE);
 
@@ -378,6 +378,7 @@ void *performClientActions(void *args) {
       //sleep(connection_length);
       //shutdown(serverSock, SHUT_RDWR);
       //close(serverSock);
+    }
     }
     return NULL;
 }
@@ -602,29 +603,29 @@ void *eventLoop(void *epollfd) {
           memcpy(&wrset,&wrsetbackup, sizeof(wrsetbackup));
           waitForSelectEvent(&rdset, &wrset,&maxfd);
           for (int i = 0; i < maxfd; ++i) {
-              if(FD_ISSET(i,&rdset)){
+            if(FD_ISSET(i,&rdset)){
                 if(i ==(listenSock)){
-                  handleIncomingConnection(i);
+                    handleIncomingConnection(i);
                 } else {
-                  for(int k = 0; i < clientMax; ++k){
+                  for(int k = 0; (size_t)k < clientMax; ++k){
                       if(clientList[k]->socket == i){
-                        pthread_mutex_lock((struct client *)clientList[k]->lock);
+                        pthread_mutex_lock(((struct client *) clientList[k])->lock);
                           handleIncomingPacket(clientList[k]);
-                          pthread_mutex_unlock((struct client *)clientList[k]->lock);
+                        pthread_mutex_unlock(((struct client *) clientList[k])->lock);
                       }
                   }
                 }
               } else if(FD_ISSET(i,&wrset)){
-                    for(int j = 0; j < clientMax; ++j){
+                    for(int j = 0; (size_t)j < clientMax; ++j){
                         unsigned char data[MAX_INPUT_SIZE];
-                        pthread_mutex_lock(((struct client *)clientList[j]->lock));
+                        pthread_mutex_lock(((struct client *) clientList[j])->lock);
                         sendEncryptedUserData(data, MAX_INPUT_SIZE, clientList[j]);
-                        pthread_mutex_unlock(((struct client *)clientList[j]->lock));
+                        pthread_mutex_unlock(((struct client *)clientList[j])->lock);
                     }
-              }
                 }
-                }
-                 }else if(isEpoll){
+            }
+        }
+    }else if(isEpoll){
       struct epoll_event *eventList = checked_calloc(MAX_EPOLL_EVENTS, sizeof(struct epoll_event));
 
       while (isRunning) {
@@ -916,7 +917,7 @@ void handleIncomingConnection(const int efd) {
         if(isNormal){
 
         } else if(isSelect){
-            createSelectFD(&rdset, sock, &maxfd);
+            createSelectFd(&rdset, sock, &maxfd);
         } else if(isEpoll){
              struct epoll_event ev;
             ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
