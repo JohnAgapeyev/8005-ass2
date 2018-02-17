@@ -68,6 +68,7 @@
 #include <openssl/pem.h>
 #include <openssl/hmac.h>
 #include <sys/stat.h>
+#include <sys/random.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdbool.h>
@@ -171,7 +172,7 @@ void cleanupCrypto(void) {
  * Wrapper around libcrypto CSPRNG call.
  */
 void fillRandom(unsigned char *buf, size_t n) {
-    checkCryptoAPICall(RAND_bytes(buf, n));
+    getrandom(buf, n, 0);
 }
 
 /*
