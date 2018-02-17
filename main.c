@@ -164,7 +164,7 @@ int main(int argc, char **argv) {
             case 's':
             //val = atoi(optarg);
             isServer = true;
-            isSelect = true;
+            isEpoll = true;
                 /*if((val = 0)){
                   //normal
                   isNormal = true;
@@ -237,7 +237,7 @@ int main(int argc, char **argv) {
     }
     struct rlimit limit;
     /* Get max number of files. */
-/*    if (getrlimit(RLIMIT_NOFILE, &limit) != 0) {
+    if (getrlimit(RLIMIT_NOFILE, &limit) != 0) {
         printf("getrlimit() failed with errno=%d\n", errno);
         exit(0);
     }
@@ -264,7 +264,7 @@ int main(int argc, char **argv) {
     if (setrlimit(RLIMIT_NPROC, &limit) != 0) {
         printf("setrlimit() failed with errno=%d\n", errno);
         exit(0);
-    }*/
+    }
 
     if (isServer) {
         listenSock = createSocket(AF_INET, SOCK_STREAM, 0);
