@@ -83,6 +83,7 @@ static struct option long_options[] = {
     {"ip",      required_argument, 0, 'i'},
     {"count",   required_argument, 0, 'k'},
     {"time",    required_argument, 0, 't'},
+    {"method",  required_argument, 0, 'm'},
     {0,         0,                 0, 0}
 };
 
@@ -92,9 +93,10 @@ static struct option long_options[] = {
             "\t [p]ort <1-65535>        - the port to use, default 1337\n"\
             "\t [c]lient                - run as client, exclusive with server\n"\
             "\t [s]erver <0-2>          - run as server, exclusive with client\n"\
-            "\t                         - 0 Multithreaded server\n"\
-            "\t                         - 1 Select server\n"\
-            "\t                         - 2 Epoll server\n"\
+            "\t [m]ethod <0-2>          - Multiplexing method to use\n"\
+            "\t                             - 0 Multithreaded server\n"\
+            "\t                             - 1 Select server\n"\
+            "\t                             - 2 Epoll server\n"\
             "\t [i]p <url || ip>        - address to connect to\n"\
             "\t [k]/count <1-ULLONG_MAX>- Number of worker clients\n"\
             "\t [t]ime <1-60>           - Length of time in seconds for each connection\n"\
@@ -148,12 +150,13 @@ int main(int argc, char **argv) {
 
     unsigned long long worker_count = 0;
     unsigned long connection_length = 0;
+    long type = -1;
 
     int val;
     int c;
     for (;;) {
         int option_index = 0;
-        if ((c = getopt_long(argc, argv, "csp:i:hk:t:", long_options, &option_index)) == -1) {
+        if ((c = getopt_long(argc, argv, "csp:i:hk:t:m:", long_options, &option_index)) == -1) {
             break;
         }
         switch (c) {
@@ -162,22 +165,7 @@ int main(int argc, char **argv) {
                 isServer = false;
                 break;
             case 's':
-            //val = atoi(optarg);
-            isServer = true;
-            isEpoll = true;
-                /*if((val = 0)){
-                  //normal
-                  isNormal = true;
-                } else if((val = 1)){
-                  //Select
-                  isSelect = true;
-                } else if((val = 2)){
-                  //epoll
-                  isEpoll = true;
-                } else {
-                  printf("Please enter a number between 0-2 to select server type");
-                  exit(0);
-                }*/
+                isServer = true;
                 break;
             case 'p':
                 portString = optarg;
@@ -189,6 +177,13 @@ int main(int argc, char **argv) {
                 worker_count = strtoull(optarg, NULL, 10);
                 if (errno == EINVAL || errno == ERANGE) {
                     perror("strtoull");
+                    return EXIT_FAILURE;
+                }
+                break;
+            case 'm':
+                type = strtol(optarg, NULL, 10);
+                if (errno == EINVAL || errno == ERANGE) {
+                    perror("strtol");
                     return EXIT_FAILURE;
                 }
                 break;
@@ -215,6 +210,21 @@ int main(int argc, char **argv) {
     if (!isServer && worker_count == 0) {
         print_help();
         return EXIT_SUCCESS;
+    }
+    if (type < 0 || type > 2) {
+        print_help();
+        return EXIT_SUCCESS;
+    }
+    switch(type) {
+        case 0:
+            isNormal = true;
+            break;
+        case 1:
+            isSelect = true;
+            break;
+        case 2:
+            isEpoll = true;
+            break;
     }
     if (!isServer && (connection_length == 0 || connection_length > 600)) {
         print_help();
