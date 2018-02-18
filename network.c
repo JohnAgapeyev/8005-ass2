@@ -318,7 +318,6 @@ void *performClientActions(void *args) {
     const char *ip = ((struct client_args *) args)->ip;
     const char *portString = ((struct client_args *) args)->portString;
     int connection_length = ((struct client_args *) args)->connection_length;
-    int serverSock=0;
 
     unsigned long long worker_count = ((struct client_args *) args)->worker_count;
     for (unsigned long long i = 0; i < worker_count; ++i) {
@@ -557,28 +556,40 @@ void *eventLoop(void *epollfd) {
         while (isRunning) {
             memcpy(&rdset,&rdsetbackup, sizeof(rdsetbackup));
             memcpy(&wrset,&wrsetbackup, sizeof(wrsetbackup));
-            waitForSelectEvent(&rdset, &wrset,&maxfd);
+            waitForSelectEvent(&rdset, &wrset, &maxfd);
             for (int i = 0; i < maxfd; ++i) {
-                if (FD_ISSET(i,&rdset)) {
-                    if (i ==(listenSock)) {
+                if (FD_ISSET(i, &rdset)) {
+                    if (i == listenSock) {
                         handleIncomingConnection(i);
                     } else {
-                        for (int k = 0; (size_t)k < clientMax; ++k) {
-                            if(clientList[k]->socket == i){
+                        pthread_mutex_lock(&clientLock);
+                        for (size_t k = 0; k < clientMax; ++k) {
+                            if (clientList[k]->socket == i) {
+                                pthread_mutex_unlock(&clientLock);
                                 pthread_mutex_lock(((struct client *) clientList[k])->lock);
                                 handleIncomingPacket(clientList[k]);
                                 pthread_mutex_unlock(((struct client *) clientList[k])->lock);
+                                //Need to re-lock to enable easy cleanup at end of loop
+                                pthread_mutex_lock(&clientLock);
+                                break;
                             }
                         }
+                        pthread_mutex_unlock(&clientLock);
                     }
                 }
-                if (FD_ISSET(i,&wrset)) {
-                    for (int j = 0; (size_t)j < clientMax; ++j) {
-                        unsigned char data[MAX_INPUT_SIZE];
-                        //pthread_mutex_lock(((struct client *) clientList[j])->lock);
-                        sendEncryptedUserData(data, MAX_INPUT_SIZE, clientList[j]);
-                        //pthread_mutex_unlock(((struct client *)clientList[j])->lock);
+                if (FD_ISSET(i, &wrset)) {
+                    pthread_mutex_lock(&clientLock);
+                    for (size_t j = 0; j < clientMax; ++j) {
+                        if (clientList[j]->socket == i) {
+                            pthread_mutex_unlock(&clientLock);
+                            unsigned char data[MAX_INPUT_SIZE];
+                            sendEncryptedUserData(data, MAX_INPUT_SIZE, clientList[j]);
+                            //Need to re-lock to enable easy cleanup at end of loop
+                            pthread_mutex_lock(&clientLock);
+                            break;
+                        }
                     }
+                    pthread_mutex_unlock(&clientLock);
                 }
             }
         }
