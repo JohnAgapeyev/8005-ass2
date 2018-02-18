@@ -73,7 +73,6 @@ extern bool isServer;
 extern bool isNormal;
 extern bool isSelect;
 extern bool isEpoll;
-extern bool isServer;
 extern EVP_PKEY *LongTermSigningKey;
 extern struct client **clientList;
 extern size_t clientCount;
