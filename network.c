@@ -567,25 +567,30 @@ void *eventLoop(void *epollfd) {
                 handleIncomingConnection(listenSock);
             }
             pthread_mutex_lock(&clientLock);
-            for (size_t i = 0; i < clientCount; ++i) {
-                if (clientList[i] && clientList[i]->enabled) {
-                    if (FD_ISSET(clientList[i]->socket, &rdset)) {
+	    size_t tempCount = clientCount;
+            pthread_mutex_unlock(&clientLock);
+            for (size_t i = 0; i < tempCount; ++i) {
+	    	pthread_mutex_lock(&clientLock);
+		struct client *src = clientList[i];
+		pthread_mutex_unlock(&clientLock);
+                if (src && src->enabled) {
+                    if (FD_ISSET(src->socket, &rdset)) {
                         //Need to do this unlock/lock pattern since incoming packet can call socket error
                         //Which also locks client lock
                         //So doing this temp unlock prevents deadlock
-                        pthread_mutex_lock(((struct client *) clientList[i])->lock);
-                        pthread_mutex_unlock(&clientLock);
-                        handleIncomingPacket(clientList[i]);
-                        pthread_mutex_lock(&clientLock);
-                        pthread_mutex_unlock(((struct client *) clientList[i])->lock);
+                        pthread_mutex_lock(src->lock);
+                        //pthread_mutex_unlock(&clientLock);
+                        handleIncomingPacket(src);
+                        //pthread_mutex_lock(&clientLock);
+                        pthread_mutex_unlock(src->lock);
                     }
-                    if (FD_ISSET(clientList[i]->socket, &wrset)) {
+                    if (FD_ISSET(src->socket, &wrset)) {
                         unsigned char data[MAX_INPUT_SIZE];
-                        sendEncryptedUserData(data, MAX_INPUT_SIZE, clientList[i]);
+                        sendEncryptedUserData(data, MAX_INPUT_SIZE, src);
                     }
                 }
             }
-            pthread_mutex_unlock(&clientLock);
+            //pthread_mutex_unlock(&clientLock);
         }
     } else if(isEpoll) {
         struct epoll_event *eventList = checked_calloc(MAX_EPOLL_EVENTS, sizeof(struct epoll_event));
@@ -867,8 +872,6 @@ void handleIncomingConnection(const int efd) {
             fatal_error("accept");
         }
 
-        printf("Someone accepts\n");
-
         setNonBlocking(sock);
         setSocketBuffers(sock);
 
@@ -883,7 +886,7 @@ void handleIncomingConnection(const int efd) {
         if(isNormal){
 
         } else if(isSelect){
-            createSelectFd(&rdset, sock, &maxfd);
+            createSelectFd(&rdsetbackup, sock, &maxfd);
         } else if(isEpoll){
             struct epoll_event ev;
             ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
