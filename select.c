@@ -10,7 +10,7 @@
 
 void createSelectFd(fd_set *fd, int newfd, int *maxfd){
     FD_SET(newfd, fd);
-    if(newfd > *maxfd){
+    if (newfd > *maxfd) {
         *maxfd = newfd;
     }
 }
@@ -19,11 +19,13 @@ int waitForSelectEvent(fd_set *rdset, fd_set *rwset, int maxfd){
     int n;
     if ((n = select(maxfd + 1, rdset, rwset, NULL, NULL)) < 0) {
         if (errno == EINTR) {
+		printf("Interrupted\n");
             //Interrupted by signal, ignore it
             return 0;
         }
         fatal_error("select wait");
     }
+		printf("Returning %d\n", n);
     return n;
 }
 

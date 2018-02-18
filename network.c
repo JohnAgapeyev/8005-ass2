@@ -104,6 +104,11 @@ void network_init(void) {
     clientCount = 1;
     clientMax = 10;
     pthread_mutex_init(&clientLock, NULL);
+
+    FD_ZERO(&rdsetbackup);
+    FD_ZERO(&rdset);
+    FD_ZERO(&wrsetbackup);
+    FD_ZERO(&wrset);
 }
 
 /*
@@ -335,8 +340,6 @@ void *performClientActions(void *args) {
 
         size_t clientNum = addClient(serverSock);
 
-        printf("Handshake complete on socket %d\n", serverSock);
-
         pthread_mutex_lock(&clientLock);
         struct client *serverEntry = clientList[clientNum];
         pthread_mutex_unlock(&clientLock);
@@ -350,7 +353,8 @@ void *performClientActions(void *args) {
         if (isNormal){
 
         } else if(isSelect){
-
+            createSelectFd(&rdsetbackup, serverSock, &maxfd);
+            createSelectFd(&wrsetbackup, serverSock, &maxfd);
         } else if (isEpoll) {
             int epollfd = ((struct client_args *) args)->epollfd;
             struct epoll_event ev;
@@ -482,10 +486,7 @@ void startServer(void) {
     if (isNormal) {
 
     } else if (isSelect) {
-        FD_ZERO(&rdsetbackup);
-        FD_ZERO(&wrsetbackup);
-        maxfd = listenSock;
-        FD_SET(listenSock, &rdsetbackup);
+        createSelectFd(&rdsetbackup, listenSock, &maxfd);
     } else if (isEpoll) {
         epollfd = createEpollFd();
 
@@ -558,44 +559,33 @@ void *eventLoop(void *epollfd) {
 
     } else if(isSelect) {
         while (isRunning) {
-            memcpy(&rdset,&rdsetbackup, sizeof(rdsetbackup));
-            memcpy(&wrset,&wrsetbackup, sizeof(wrsetbackup));
-            int n = waitForSelectEvent(&rdset, &wrset, maxfd);
-            for (int i = 0; i < n; ++i) {
-                if (FD_ISSET(i, &rdset)) {
-                    if (i == listenSock) {
-                        handleIncomingConnection(i);
-                    } else {
-                        pthread_mutex_lock(&clientLock);
-                        for (size_t k = 0; k < clientMax; ++k) {
-                            if (clientList[k]->socket == i) {
-                                pthread_mutex_unlock(&clientLock);
-                                pthread_mutex_lock(((struct client *) clientList[k])->lock);
-                                handleIncomingPacket(clientList[k]);
-                                pthread_mutex_unlock(((struct client *) clientList[k])->lock);
-                                //Need to re-lock to enable easy cleanup at end of loop
-                                pthread_mutex_lock(&clientLock);
-                                break;
-                            }
-                        }
+            memcpy(&rdset, &rdsetbackup, sizeof(fd_set));
+            memcpy(&wrset, &wrsetbackup, sizeof(fd_set));
+            waitForSelectEvent(&rdset, &wrset, maxfd);
+            if (FD_ISSET(listenSock, &rdset)) {
+                printf("Is the listener\n");
+                handleIncomingConnection(listenSock);
+            }
+            pthread_mutex_lock(&clientLock);
+            for (size_t i = 0; i < clientCount; ++i) {
+                if (clientList[i] && clientList[i]->enabled) {
+                    if (FD_ISSET(clientList[i]->socket, &rdset)) {
+                        //Need to do this unlock/lock pattern since incoming packet can call socket error
+                        //Which also locks client lock
+                        //So doing this temp unlock prevents deadlock
+                        pthread_mutex_lock(((struct client *) clientList[i])->lock);
                         pthread_mutex_unlock(&clientLock);
+                        handleIncomingPacket(clientList[i]);
+                        pthread_mutex_lock(&clientLock);
+                        pthread_mutex_unlock(((struct client *) clientList[i])->lock);
                     }
-                }
-                if (FD_ISSET(i, &wrset)) {
-                    pthread_mutex_lock(&clientLock);
-                    for (size_t j = 0; j < clientMax; ++j) {
-                        if (clientList[j]->socket == i) {
-                            pthread_mutex_unlock(&clientLock);
-                            unsigned char data[MAX_INPUT_SIZE];
-                            sendEncryptedUserData(data, MAX_INPUT_SIZE, clientList[j]);
-                            //Need to re-lock to enable easy cleanup at end of loop
-                            pthread_mutex_lock(&clientLock);
-                            break;
-                        }
+                    if (FD_ISSET(clientList[i]->socket, &wrset)) {
+                        unsigned char data[MAX_INPUT_SIZE];
+                        sendEncryptedUserData(data, MAX_INPUT_SIZE, clientList[i]);
                     }
-                    pthread_mutex_unlock(&clientLock);
                 }
             }
+            pthread_mutex_unlock(&clientLock);
         }
     } else if(isEpoll) {
         struct epoll_event *eventList = checked_calloc(MAX_EPOLL_EVENTS, sizeof(struct epoll_event));
@@ -877,6 +867,8 @@ void handleIncomingConnection(const int efd) {
             fatal_error("accept");
         }
 
+        printf("Someone accepts\n");
+
         setNonBlocking(sock);
         setSocketBuffers(sock);
 
@@ -887,6 +879,7 @@ void handleIncomingConnection(const int efd) {
 
         unsigned char *secretKey = exchangeKeys(newClientEntry);
         debug_print_buffer("Shared secret: ", secretKey, HASH_SIZE);
+
         if(isNormal){
 
         } else if(isSelect){
