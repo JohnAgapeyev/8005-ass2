@@ -8,20 +8,20 @@
 #include "macro.h"
 #include "socket.h"
 
-void createSelectFd(fd_set* fd, int newfd, int* maxfd){
+void createSelectFd(fd_set *fd, int newfd, int *maxfd){
     FD_SET(newfd, fd);
     if(newfd > *maxfd){
         *maxfd = newfd;
     }
 }
 
-void waitForSelectEvent(fd_set* rdset, fd_set* rwset, int * maxfd){
+int waitForSelectEvent(fd_set *rdset, fd_set *rwset, int maxfd){
     int n;
 
-    if((n = select(*maxfd+1,rdset, rwset, NULL, NULL)) < 0){
+    if ((n = select(maxfd + 1, rdset, rwset, NULL, NULL)) < 0) {
         perror("select error");
     }
-
+    return n;
 }
 
 size_t singleSelectReadInstance(const int sock, unsigned char *buffer, const size_t bufSize, fd_set* fd, int* maxfd ){

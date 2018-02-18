@@ -62,7 +62,6 @@ bool isServer;
 bool isNormal;
 bool isSelect;
 bool isEpoll;
-fd_set rdset, rdsetbackup, wrset,wrsetbackup;
 struct client **clientList;
 size_t clientCount;
 size_t clientMax;
@@ -71,6 +70,11 @@ int listenSock;
 int maxfd;
 
 pthread_mutex_t clientLock;
+
+fd_set rdset;
+fd_set rdsetbackup;
+fd_set wrset;
+fd_set wrsetbackup;
 
 /*
  * FUNCTION: network_init
@@ -556,8 +560,8 @@ void *eventLoop(void *epollfd) {
         while (isRunning) {
             memcpy(&rdset,&rdsetbackup, sizeof(rdsetbackup));
             memcpy(&wrset,&wrsetbackup, sizeof(wrsetbackup));
-            waitForSelectEvent(&rdset, &wrset, &maxfd);
-            for (int i = 0; i < maxfd; ++i) {
+            int n = waitForSelectEvent(&rdset, &wrset, maxfd);
+            for (int i = 0; i < n; ++i) {
                 if (FD_ISSET(i, &rdset)) {
                     if (i == listenSock) {
                         handleIncomingConnection(i);
