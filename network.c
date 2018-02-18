@@ -475,71 +475,50 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
  */
 void startServer(void) {
     network_init();
-    if(isNormal){
+    int epollfd = -1;
+    if (isNormal) {
 
-    } else if(isSelect){
+    } else if (isSelect) {
         FD_ZERO(&rdsetbackup);
         FD_ZERO(&wrsetbackup);
         maxfd = listenSock;
         FD_SET(listenSock, &rdsetbackup);
-
-        setNonBlocking(listenSock);
-
-        const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
-
-        pthread_attr_t attr;
-        pthread_attr_init(&attr);
-        cpu_set_t cpus;
-
-        pthread_t threads[core_count - 1];
-        for (size_t i = 0; i < core_count - 1; ++i) {
-            CPU_ZERO(&cpus);
-            CPU_SET(i, &cpus);
-            pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
-            pthread_create(&threads[i], &attr, eventLoop, &listenSock);
-        }
-        pthread_attr_destroy(&attr);
-
-        eventLoop(&listenSock);
-
-        for (size_t i = 0; i < core_count - 1; ++i) {
-            pthread_kill(threads[i], SIGINT);
-            pthread_join(threads[i], NULL);
-        }
-
-    } else if(isEpoll){
-        int epollfd = createEpollFd();
+    } else if (isEpoll) {
+        epollfd = createEpollFd();
 
         struct epoll_event ev;
         ev.events = EPOLLIN | EPOLLET;
         ev.data.ptr = NULL;
 
-        setNonBlocking(listenSock);
-
         addEpollSocket(epollfd, listenSock, &ev);
+    }
+    setNonBlocking(listenSock);
 
-        const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
+    const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
 
-        pthread_attr_t attr;
-        pthread_attr_init(&attr);
-        cpu_set_t cpus;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    cpu_set_t cpus;
 
-        pthread_t threads[core_count - 1];
-        for (size_t i = 0; i < core_count - 1; ++i) {
-            CPU_ZERO(&cpus);
-            CPU_SET(i, &cpus);
-            pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
-            pthread_create(&threads[i], &attr, eventLoop, &epollfd);
-        }
-        pthread_attr_destroy(&attr);
+    pthread_t threads[core_count - 1];
+    for (size_t i = 0; i < core_count - 1; ++i) {
+        CPU_ZERO(&cpus);
+        CPU_SET(i, &cpus);
+        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+        pthread_create(&threads[i], &attr, eventLoop, &epollfd);
+    }
+    pthread_attr_destroy(&attr);
 
-        eventLoop(&epollfd);
+    eventLoop(&epollfd);
 
-        for (size_t i = 0; i < core_count - 1; ++i) {
-            pthread_kill(threads[i], SIGINT);
-            pthread_join(threads[i], NULL);
-        }
+    for (size_t i = 0; i < core_count - 1; ++i) {
+        pthread_kill(threads[i], SIGINT);
+        pthread_join(threads[i], NULL);
+    }
 
+    if (isNormal) {
+    } else if (isSelect) {
+    } else if (isEpoll) {
         close(epollfd);
     }
     network_cleanup();
@@ -572,19 +551,19 @@ void startServer(void) {
 void *eventLoop(void *epollfd) {
     int efd = *((int *)epollfd);
 
-    if(isNormal){
+    if (isNormal) {
 
-    } else if(isSelect){
+    } else if(isSelect) {
         while (isRunning) {
             memcpy(&rdset,&rdsetbackup, sizeof(rdsetbackup));
             memcpy(&wrset,&wrsetbackup, sizeof(wrsetbackup));
             waitForSelectEvent(&rdset, &wrset,&maxfd);
             for (int i = 0; i < maxfd; ++i) {
-                if(FD_ISSET(i,&rdset)){
-                    if(i ==(listenSock)){
+                if (FD_ISSET(i,&rdset)) {
+                    if (i ==(listenSock)) {
                         handleIncomingConnection(i);
                     } else {
-                        for(int k = 0; (size_t)k < clientMax; ++k){
+                        for (int k = 0; (size_t)k < clientMax; ++k) {
                             if(clientList[k]->socket == i){
                                 pthread_mutex_lock(((struct client *) clientList[k])->lock);
                                 handleIncomingPacket(clientList[k]);
@@ -592,17 +571,18 @@ void *eventLoop(void *epollfd) {
                             }
                         }
                     }
-                } else if(FD_ISSET(i,&wrset)){
-                    for(int j = 0; (size_t)j < clientMax; ++j){
+                }
+                if (FD_ISSET(i,&wrset)) {
+                    for (int j = 0; (size_t)j < clientMax; ++j) {
                         unsigned char data[MAX_INPUT_SIZE];
-                        pthread_mutex_lock(((struct client *) clientList[j])->lock);
+                        //pthread_mutex_lock(((struct client *) clientList[j])->lock);
                         sendEncryptedUserData(data, MAX_INPUT_SIZE, clientList[j]);
-                        pthread_mutex_unlock(((struct client *)clientList[j])->lock);
+                        //pthread_mutex_unlock(((struct client *)clientList[j])->lock);
                     }
                 }
             }
         }
-    }else if(isEpoll){
+    } else if(isEpoll) {
         struct epoll_event *eventList = checked_calloc(MAX_EPOLL_EVENTS, sizeof(struct epoll_event));
 
         while (isRunning) {
@@ -610,7 +590,8 @@ void *eventLoop(void *epollfd) {
             //n can't be -1 because the handling for that is done in waitForEpollEvent
             assert(n != -1);
             for (int i = 0; i < n; ++i) {
-                if (eventList[i].events & EPOLLERR || eventList[i].events & EPOLLHUP || eventList[i].events & EPOLLRDHUP) {
+                if (eventList[i].events & EPOLLERR || eventList[i].events & EPOLLHUP
+                        || eventList[i].events & EPOLLRDHUP) {
                     //pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                     handleSocketError(eventList[i].data.ptr);
                     //pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
