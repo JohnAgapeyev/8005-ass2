@@ -18,8 +18,12 @@ void createSelectFd(fd_set *fd, int newfd, int *maxfd){
 }
 
 int waitForSelectEvent(fd_set *rdset, fd_set *rwset, int maxfd){
+    struct timeval wait;
+    wait.tv_sec = 0;
+    wait.tv_usec = 10;
+
     int n;
-    if ((n = select(maxfd + 1, rdset, rwset, NULL, NULL)) < 0) {
+    if ((n = select(maxfd + 1, rdset, rwset, NULL, &wait)) < 0) {
         if (errno == EINTR) {
             //Interrupted by signal, ignore it
             return 0;
