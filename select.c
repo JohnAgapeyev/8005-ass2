@@ -9,10 +9,12 @@
 #include "socket.h"
 
 void createSelectFd(fd_set *fd, int newfd, int *maxfd){
+    pthread_mutex_lock(&selectLock);
     FD_SET(newfd, fd);
     if (newfd > *maxfd) {
         *maxfd = newfd;
     }
+    pthread_mutex_unlock(&selectLock);
 }
 
 int waitForSelectEvent(fd_set *rdset, fd_set *rwset, int maxfd){

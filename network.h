@@ -78,6 +78,7 @@ extern struct client **clientList;
 extern size_t clientCount;
 extern unsigned short port;
 extern int listenSock;
+extern pthread_mutex_t selectLock;
 
 void network_init(void);
 void network_cleanup(void);

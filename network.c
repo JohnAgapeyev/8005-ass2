@@ -70,10 +70,9 @@ int listenSock;
 int maxfd;
 
 pthread_mutex_t clientLock;
+pthread_mutex_t selectLock;
 
-fd_set rdset;
 fd_set rdsetbackup;
-fd_set wrset;
 fd_set wrsetbackup;
 
 /*
@@ -104,11 +103,10 @@ void network_init(void) {
     clientCount = 1;
     clientMax = 10;
     pthread_mutex_init(&clientLock, NULL);
+    pthread_mutex_init(&selectLock, NULL);
 
     FD_ZERO(&rdsetbackup);
-    FD_ZERO(&rdset);
     FD_ZERO(&wrsetbackup);
-    FD_ZERO(&wrset);
 }
 
 /*
@@ -143,6 +141,7 @@ void network_cleanup(void) {
         }
     }
     pthread_mutex_destroy(&clientLock);
+    pthread_mutex_destroy(&selectLock);
     free(clientList);
     cleanupCrypto();
 }
@@ -559,20 +558,24 @@ void *eventLoop(void *epollfd) {
 
     } else if(isSelect) {
         while (isRunning) {
+            fd_set rdset;
+            fd_set wrset;
+	    pthread_mutex_lock(&selectLock);
+            int myMax = maxfd;
             memcpy(&rdset, &rdsetbackup, sizeof(fd_set));
             memcpy(&wrset, &wrsetbackup, sizeof(fd_set));
-            waitForSelectEvent(&rdset, &wrset, maxfd);
+	    pthread_mutex_unlock(&selectLock);
+            waitForSelectEvent(&rdset, &wrset, myMax);
             if (FD_ISSET(listenSock, &rdset)) {
-                printf("Is the listener\n");
                 handleIncomingConnection(listenSock);
             }
             pthread_mutex_lock(&clientLock);
-	    size_t tempCount = clientCount;
+            size_t tempCount = clientMax;
             pthread_mutex_unlock(&clientLock);
             for (size_t i = 0; i < tempCount; ++i) {
-	    	pthread_mutex_lock(&clientLock);
-		struct client *src = clientList[i];
-		pthread_mutex_unlock(&clientLock);
+                pthread_mutex_lock(&clientLock);
+                struct client *src = clientList[i];
+                pthread_mutex_unlock(&clientLock);
                 if (src && src->enabled) {
                     if (FD_ISSET(src->socket, &rdset)) {
                         //Need to do this unlock/lock pattern since incoming packet can call socket error
