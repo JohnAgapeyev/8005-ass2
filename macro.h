@@ -49,11 +49,16 @@
 
 #include <stddef.h>
 
+#define likely(cond) __builtin_expect(!!(cond), 1)
+
+#define unlikely(cond) __builtin_expect(!!(cond), 0)
+
 #define fatal_error(mesg) \
     do {\
         perror(mesg);\
         fprintf(stderr, "%s, line %d in function %s\n", __FILE__, __LINE__, __func__); \
         exit(EXIT_FAILURE);\
+        __builtin_unreachable(); \
     } while(0)
 
 #define container_entry(ptr, type, member)\

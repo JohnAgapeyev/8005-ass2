@@ -560,11 +560,11 @@ void *eventLoop(void *epollfd) {
         while (isRunning) {
             fd_set rdset;
             fd_set wrset;
-	    pthread_mutex_lock(&selectLock);
+            pthread_mutex_lock(&selectLock);
             int myMax = maxfd;
             memcpy(&rdset, &rdsetbackup, sizeof(fd_set));
             memcpy(&wrset, &wrsetbackup, sizeof(fd_set));
-	    pthread_mutex_unlock(&selectLock);
+            pthread_mutex_unlock(&selectLock);
             waitForSelectEvent(&rdset, &wrset, myMax);
             if (FD_ISSET(listenSock, &rdset)) {
                 handleIncomingConnection(listenSock);
@@ -603,11 +603,11 @@ void *eventLoop(void *epollfd) {
             //n can't be -1 because the handling for that is done in waitForEpollEvent
             assert(n != -1);
             for (int i = 0; i < n; ++i) {
-                if (eventList[i].events & EPOLLERR || eventList[i].events & EPOLLHUP
-                        || eventList[i].events & EPOLLRDHUP) {
+                if (unlikely(eventList[i].events & EPOLLERR || eventList[i].events & EPOLLHUP
+                        || eventList[i].events & EPOLLRDHUP)) {
                     handleSocketError(eventList[i].data.ptr);
                 } else {
-                    if (eventList[i].events & EPOLLIN) {
+                    if (likely(eventList[i].events & EPOLLIN)) {
                         if (eventList[i].data.ptr) {
                             //Regular read connection
                             if (pthread_mutex_trylock(((struct client *) eventList[i].data.ptr)->lock) < 0) {
@@ -623,7 +623,7 @@ void *eventLoop(void *epollfd) {
                             handleIncomingConnection(efd);
                         }
                     }
-                    if (eventList[i].events & EPOLLOUT) {
+                    if (likely(eventList[i].events & EPOLLOUT)) {
                         unsigned char data[MAX_INPUT_SIZE];
                         sendEncryptedUserData(data, MAX_INPUT_SIZE, eventList[i].data.ptr);
                     }
@@ -834,7 +834,7 @@ void decryptReceivedUserData(const unsigned char *mesg, const size_t mesgLen, st
     ssize_t plainLen = decrypt_aead(mesg + sizeof(uint16_t), mesgLen - TAG_SIZE - IV_SIZE - sizeof(uint16_t), aad, sizeof(uint16_t) + IV_SIZE,
             src->sharedKey, mesg + mesgLen - TAG_SIZE - IV_SIZE, mesg + mesgLen - TAG_SIZE, plain);
 
-    if (plainLen == -1) {
+    if (unlikely(plainLen == -1)) {
         fprintf(stderr, "Packet tag failed to verify, dropping...\n");
     } else {
         process_packet(plain, plainLen, src);
@@ -1129,11 +1129,6 @@ void readSigningKey(const int sock, struct client *clientEntry, const size_t key
     const uint16_t packetLength = keyLen + sizeof(uint16_t);
     unsigned char mesgBuffer[packetLength];
     size_t n = singleEpollReadInstance(sock, mesgBuffer, packetLength);
-
-    //printf("Signing key length: %d\n", n);
-    if (n == 0) {
-        perror("Signing key");
-    }
 
     debug_print_buffer("Received signing key: ", mesgBuffer, packetLength);
 

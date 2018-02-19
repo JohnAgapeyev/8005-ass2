@@ -66,6 +66,7 @@
 #include <openssl/evp.h>
 #include <openssl/err.h>
 #include <stdbool.h>
+#include "macro.h"
 
 #define libcrypto_error() \
     do {\
@@ -75,14 +76,14 @@
 
 #define checkCryptoAPICall(pred) \
     do {\
-        if ((pred) != 1) {\
+        if (unlikely((pred) != 1)) {\
             libcrypto_error();\
         }\
     } while(0)
 
 #define nullCheckCryptoAPICall(pred) \
     do {\
-        if ((pred) == NULL) {\
+        if (unlikely((pred) == NULL)) {\
             libcrypto_error();\
         }\
     } while(0)
