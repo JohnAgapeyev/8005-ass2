@@ -55,7 +55,7 @@
 
 #include <sys/epoll.h>
 
-#define MAX_EPOLL_EVENTS 20
+#define MAX_EPOLL_EVENTS 10000
 
 int createEpollFd(void);
 void addEpollSocket(const int epollfd, const int sock, struct epoll_event *ev);

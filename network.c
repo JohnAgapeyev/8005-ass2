@@ -605,14 +605,17 @@ void *eventLoop(void *epollfd) {
             for (int i = 0; i < n; ++i) {
                 if (eventList[i].events & EPOLLERR || eventList[i].events & EPOLLHUP
                         || eventList[i].events & EPOLLRDHUP) {
-                    //pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                     handleSocketError(eventList[i].data.ptr);
-                    //pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                 } else {
                     if (eventList[i].events & EPOLLIN) {
                         if (eventList[i].data.ptr) {
                             //Regular read connection
-                            pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
+                            if (pthread_mutex_trylock(((struct client *) eventList[i].data.ptr)->lock) < 0) {
+                                if (errno == EBUSY) {
+                                    continue;
+                                }
+                                fatal_error("trylock");
+                            }
                             handleIncomingPacket(eventList[i].data.ptr);
                             pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                         } else {
@@ -622,9 +625,7 @@ void *eventLoop(void *epollfd) {
                     }
                     if (eventList[i].events & EPOLLOUT) {
                         unsigned char data[MAX_INPUT_SIZE];
-                        //pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                         sendEncryptedUserData(data, MAX_INPUT_SIZE, eventList[i].data.ptr);
-                        //pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                     }
                 }
             }
