@@ -610,14 +610,15 @@ void *eventLoop(void *epollfd) {
                     if (likely(eventList[i].events & EPOLLIN)) {
                         if (eventList[i].data.ptr) {
                             //Regular read connection
-                            if (pthread_mutex_trylock(((struct client *) eventList[i].data.ptr)->lock) < 0) {
-                                if (errno == EBUSY) {
-                                    continue;
-                                }
-                                fatal_error("trylock");
-                            }
-                            handleIncomingPacket(eventList[i].data.ptr);
-                            pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                            if (pthread_mutex_trylock(((struct client *) eventList[i].data.ptr)->lock) == 0) {
+                                handleIncomingPacket(eventList[i].data.ptr);
+                                pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                            } else {
+				    if (errno == EBUSY || errno == 0) {
+					continue;
+				    }
+				    fatal_error("trylock");
+			    }
                         } else {
                             //Null data pointer means listen socket has incoming connection
                             handleIncomingConnection(efd);
