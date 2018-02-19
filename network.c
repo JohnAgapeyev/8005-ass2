@@ -604,7 +604,7 @@ void *eventLoop(void *epollfd) {
             assert(n != -1);
             for (int i = 0; i < n; ++i) {
                 if (unlikely(eventList[i].events & EPOLLERR || eventList[i].events & EPOLLHUP
-                        || eventList[i].events & EPOLLRDHUP)) {
+                            || eventList[i].events & EPOLLRDHUP)) {
                     handleSocketError(eventList[i].data.ptr);
                 } else {
                     if (likely(eventList[i].events & EPOLLIN)) {
@@ -614,11 +614,11 @@ void *eventLoop(void *epollfd) {
                                 handleIncomingPacket(eventList[i].data.ptr);
                                 pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                             } else {
-				    if (errno == EBUSY || errno == 0) {
-					continue;
-				    }
-				    fatal_error("trylock");
-			    }
+                                if (errno == EBUSY || errno == EAGAIN || errno == 0) {
+                                    continue;
+                                }
+                                fatal_error("trylock");
+                            }
                         } else {
                             //Null data pointer means listen socket has incoming connection
                             handleIncomingConnection(efd);
