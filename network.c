@@ -99,9 +99,9 @@ fd_set wrsetbackup;
 void network_init(void) {
     initCrypto();
     LongTermSigningKey = generateECKey();
-    clientList = checked_calloc(10, sizeof(struct client *));
+    clientList = checked_calloc(10000, sizeof(struct client *));
     clientCount = 1;
-    clientMax = 10;
+    clientMax = 10000;
     pthread_mutex_init(&clientLock, NULL);
     pthread_mutex_init(&selectLock, NULL);
 
