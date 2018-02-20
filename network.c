@@ -577,24 +577,29 @@ void *eventLoop(void *epollfd) {
             size_t tempCount = clientMax;
             pthread_mutex_unlock(&clientLock);
                 for(size_t l = 0; l < tempCount; ++l){
+                    pthread_mutex_lock(&clientLock);
+                    struct client *src = clientList[l];
+                    pthread_mutex_unlock(&clientLock);
+                    if(src && src->enabled){
                     if(isServer){
                         handleIncomingConnection(listenSock);
-                        pthread_mutex_lock(&clientLock);
+                        /*pthread_mutex_lock(&clientLock);
                         struct client *src = clientList[l];
-                        pthread_mutex_unlock(&clientLock);
-                            if(src && src->enabled){
+                        pthread_mutex_unlock(&clientLock);*/
+                            //if(src && src->enabled){
                                 pthread_mutex_lock(src->lock);
                                 handleIncomingPacket(src);
                                 pthread_mutex_unlock(src->lock);
-                            }
+                            //}
                         } else {
-                            pthread_mutex_lock(&clientLock);
+                            /*pthread_mutex_lock(&clientLock);
                             struct client *src = clientList[l];
-                            pthread_mutex_unlock(&clientLock);
+                            pthread_mutex_unlock(&clientLock);*/
                             unsigned char data[MAX_INPUT_SIZE];
-                            if(src && src->enabled){
+                            //if(src && src->enabled){
                             sendEncryptedUserData(data, MAX_INPUT_SIZE, src);
-                            }
+                            //}
+                    }
                     }
                 }
         }
