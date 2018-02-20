@@ -421,15 +421,6 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
     pthread_attr_init(&attr);
     cpu_set_t cpus;
 
-    pthread_t readThreads[core_count];
-    for (size_t i = 0; i < core_count; ++i) {
-        CPU_ZERO(&cpus);
-        CPU_SET(i, &cpus);
-        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
-        pthread_create(&readThreads[i], &attr, eventLoop, &epollfd);
-    }
-    pthread_attr_destroy(&attr);
-
     for (size_t i = 0; i < core_count; ++i) {
         if (i == core_count - 1) {
             testArgs->worker_count = (worker_count / core_count) + (worker_count % core_count);
@@ -448,6 +439,15 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
     for (unsigned long long i = 0; i < core_count; ++i) {
         pthread_join(workerThreads[i], NULL);
     }
+
+    pthread_t readThreads[core_count];
+    for (size_t i = 0; i < core_count; ++i) {
+        CPU_ZERO(&cpus);
+        CPU_SET(i, &cpus);
+        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+        pthread_create(&readThreads[i], &attr, eventLoop, &epollfd);
+    }
+    pthread_attr_destroy(&attr);
 
     sleep(connection_length);
     isRunning = false;
@@ -574,31 +574,30 @@ void *eventLoop(void *epollfd) {
     if (isNormal) {
         while(isRunning){
             pthread_mutex_lock(&clientLock);
-            size_t tempCount = clientMax;
+            size_t tmpCount = clientMax;
             pthread_mutex_unlock(&clientLock);
-                for(size_t l = 0; l < tempCount; ++l){
-                    if(isServer){
-                        handleIncomingConnection(listenSock);
-                        pthread_mutex_lock(&clientLock);
-                        struct client *src = clientList[l];
-                        pthread_mutex_unlock(&clientLock);
-                            if(src && src->enabled){
+            if(isServer){
+                handleIncomingConnection(listenSock);
+            }
+                for(size_t l = 0; l < tmpCount; ++l){
+                    pthread_mutex_lock(&clientLock);
+                    struct client *src = clientList[l];
+                    pthread_mutex_unlock(&clientLock);
+                    if(src && src->enabled){
+                        if(isServer){
                                 pthread_mutex_lock(src->lock);
                                 handleIncomingPacket(src);
                                 pthread_mutex_unlock(src->lock);
-                            }
                         } else {
-                            pthread_mutex_lock(&clientLock);
-                            struct client *src = clientList[l];
-                            pthread_mutex_unlock(&clientLock);
                             unsigned char data[MAX_INPUT_SIZE];
-                            if(src && src->enabled){
-                            sendEncryptedUserData(data, MAX_INPUT_SIZE, src);
-                            }
+                            pthread_mutex_lock(src->lock);
+                              sendEncryptedUserData(data, MAX_INPUT_SIZE, src);
+                            pthread_mutex_unlock(src->lock);
+                        }
                     }
                 }
         }
-    } else if(isSelect) {
+    }  else if(isSelect) {
         while (isRunning) {
             fd_set rdset;
             fd_set wrset;
