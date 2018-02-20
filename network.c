@@ -439,15 +439,8 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
     sleep(connection_length);
     isRunning = false;
 
-#if 0
     for (unsigned long long i = 0; i < core_count; ++i) {
-        printf("Killing workers\n");
-        pthread_kill(workerThreads[i], SIGINT);
-        pthread_join(workerThreads[i], NULL);
-    }
-#endif
-    for (unsigned long long i = 0; i < core_count; ++i) {
-        pthread_kill(readThreads[i], SIGINT);
+        pthread_kill(readThreads[i], SIGKILL);
         pthread_join(readThreads[i], NULL);
     }
     free(testArgs);
@@ -610,15 +603,9 @@ void *eventLoop(void *epollfd) {
                     if (likely(eventList[i].events & EPOLLIN)) {
                         if (eventList[i].data.ptr) {
                             //Regular read connection
-                            if (pthread_mutex_trylock(((struct client *) eventList[i].data.ptr)->lock) == 0) {
+                                pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                                 handleIncomingPacket(eventList[i].data.ptr);
                                 pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
-                            } else {
-                                if (errno == EBUSY || errno == EAGAIN || errno == 0) {
-                                    continue;
-                                }
-                                fatal_error("trylock");
-                            }
                         } else {
                             //Null data pointer means listen socket has incoming connection
                             handleIncomingConnection(efd);
