@@ -548,7 +548,30 @@ void *eventLoop(void *epollfd) {
     int efd = *((int *)epollfd);
 
     if (isNormal) {
-
+        while(isRunning){
+            pthread_mutex_lock(&clientLock);
+            size_t tempCount = clientMax;
+            pthread_mutex_unlock(&clientLock);
+                for(size_t l = 0; l < tempCount; ++l){
+                    if(isServer){
+                        handleIncomingConnection(listenSock);
+                        pthread_mutex_lock(&clientLock);
+                        struct client *src = clientList[l];
+                        pthread_mutex_unlock(&clientLock);
+                            if(src && src->enabled){
+                                pthread_mutex_lock(src->lock);
+                                handleIncomingPacket(src);
+                                pthread_mutex_unlock(src->lock);
+                            }
+                        } else {
+                            pthread_mutex_lock(&clientLock);
+                            struct client *src = clientList[l];
+                            pthread_mutex_lock(&clientLock);
+                            unsigned char data[MAX_INPUT_SIZE];
+                            sendEncryptedUserData(data, MAX_INPUT_SIZE, src);
+                    }
+                }
+        }
     } else if(isSelect) {
         while (isRunning) {
             fd_set rdset;
