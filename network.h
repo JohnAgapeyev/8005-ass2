@@ -49,6 +49,10 @@ struct client {
     EVP_PKEY *signingKey;
     bool enabled;
     pthread_mutex_t *lock;
+    uint64_t packetCount;
+    uint64_t bytesSent;
+    uint64_t averageUs;
+    uint64_t startUs;
 };
 
 struct client_args {

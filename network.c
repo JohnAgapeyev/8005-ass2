@@ -181,6 +181,19 @@ void process_packet(const unsigned char * const buffer, const size_t bufsize, st
     fprintf(stderr, "\n");
 #endif
 
+    struct timespec start;
+    clock_gettime(CLOCK_REALTIME, &start);
+
+    uint64_t responseTime = (start.tv_sec * 1000 * 1000) + (start.tv_nsec / 1000);
+    responseTime -= src->startUs;
+
+    if (src->averageUs == 0 || src->packetCount == 0) {
+        src->averageUs = responseTime;
+    } else {
+        src->averageUs = src->averageUs * (src->packetCount - 1)
+            / src->packetCount + responseTime / src->packetCount;
+    }
+
     if (isServer) {
         //Echo the packet
         sendEncryptedUserData(buffer, bufsize, src);
@@ -443,6 +456,7 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
         pthread_kill(readThreads[i], SIGKILL);
         pthread_join(readThreads[i], NULL);
     }
+
     free(testArgs);
     close(epollfd);
     network_cleanup();
@@ -517,6 +531,16 @@ void startServer(void) {
     } else if (isEpoll) {
         close(epollfd);
     }
+
+    for (size_t i = 0; i < clientMax; ++i) {
+        if (clientList[i]) {
+            printf("Socket: %d\n", clientList[i]->socket);
+            printf("Packet count: %llu\n", clientList[i]->packetCount);
+            printf("Bytes sent: %llu\n", clientList[i]->bytesSent);
+            printf("Average response in micro: %llu\n", clientList[i]->averageUs);
+        }
+    }
+
     network_cleanup();
 }
 
@@ -733,6 +757,11 @@ void initClientStruct(struct client *newClient, int sock) {
     newClient->lock = checked_malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(newClient->lock, NULL);
     newClient->enabled = true;
+
+    newClient->packetCount = 0;
+    newClient->bytesSent = 0;
+    newClient->averageUs = 0;
+    newClient->startUs = 0;
 }
 
 /*
@@ -805,6 +834,14 @@ void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, stru
 
     //Write the packet to the socket
     rawSend(dest->socket, out, packetLength + sizeof(uint16_t));
+
+    struct timespec start;
+
+    clock_gettime(CLOCK_REALTIME, &start);
+
+    dest->packetCount++;
+    dest->bytesSent += packetLength + sizeof(uint16_t);
+    dest->startUs = (start.tv_sec * 1000 * 1000) + (start.tv_nsec / 1000);
 }
 
 /*
