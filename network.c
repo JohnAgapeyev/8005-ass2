@@ -566,7 +566,7 @@ void *eventLoop(void *epollfd) {
                         } else {
                             pthread_mutex_lock(&clientLock);
                             struct client *src = clientList[l];
-                            pthread_mutex_lock(&clientLock);
+                            pthread_mutex_unlock(&clientLock);
                             unsigned char data[MAX_INPUT_SIZE];
                             sendEncryptedUserData(data, MAX_INPUT_SIZE, src);
                     }
