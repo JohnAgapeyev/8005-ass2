@@ -591,9 +591,9 @@ void startServer(void) {
                                  pthread_mutex_unlock(src->lock);
                          } else {
                              unsigned char data[MAX_INPUT_SIZE];
-                             //pthread_mutex_lock(src->lock);
+                             pthread_mutex_lock(src->lock);
                                sendEncryptedUserData(data, MAX_INPUT_SIZE, src);
-                             //pthread_mutex_unlock(src->lock);
+                             pthread_mutex_unlock(src->lock);
                          }
                      }
                  }
