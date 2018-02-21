@@ -196,6 +196,9 @@ void process_packet(const unsigned char * const buffer, const size_t bufsize, st
             / src->packetCount + responseTime / src->packetCount;
     }
     if (isServer) {
+	    //Spin to clear the buffer
+        //while (!clearSendBuffer(src));
+        clearSendBuffer(src);
         //Echo the packet
         sendEncryptedUserData(buffer, bufsize, src);
         clearSendBuffer(src);
@@ -277,11 +280,11 @@ unsigned char *exchangeKeys(struct client *clientEntry) {
 
         EVP_PKEY *serverPubKey = setPublicKey(mesgBuffer + sizeof(uint16_t), ephemeralPubKeyLen);
 
-        printf("Send 1 key\n");
+        //printf("Send 1 key\n");
         sendSigningKey(clientEntry->socket, signPubKey, pubKeyLen);
-        printf("Send 2 key\n");
+        //printf("Send 2 key\n");
         sendEphemeralKey(clientEntry->socket, ephemeralPubKey, ephemeralPubKeyLen, hmac, hmaclen);
-        printf("Done\n");
+        //printf("Done\n");
 
         sharedSecret = getSharedSecret(ephemeralKey, serverPubKey);
 
@@ -680,16 +683,17 @@ void *eventLoop(void *epollfd) {
                     if (likely(eventList[i].events & EPOLLOUT)) {
                         pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                         if (clearSendBuffer(eventList[i].data.ptr)) {
-                            pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                            //pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                             if (!isServer) {
                                 unsigned char data[MAX_INPUT_SIZE];
                                 sendEncryptedUserData(data, MAX_INPUT_SIZE, eventList[i].data.ptr);
-                                pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
+                                //pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                                 clearSendBuffer(eventList[i].data.ptr);
-                                pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                                //pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                                 //printf("Sending data\n");
                             }
                         }
+			pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                     }
                 }
             }
