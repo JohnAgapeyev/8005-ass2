@@ -404,7 +404,9 @@ void *performClientActions(void *args) {
  */
 void startClient(const char *ip, const char *portString, const unsigned long long worker_count, const unsigned long connection_length) {
     network_init();
+    if(isNormal){
 
+    }
     pthread_t workerThreads[worker_count];
 
     int epollfd = createEpollFd();
@@ -421,33 +423,34 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
     pthread_attr_init(&attr);
     cpu_set_t cpus;
 
-    for (size_t i = 0; i < core_count; ++i) {
-        if (i == core_count - 1) {
-            testArgs->worker_count = (worker_count / core_count) + (worker_count % core_count);
-        } else {
-            testArgs->worker_count = worker_count / core_count;
-        }
-        if (pthread_create(workerThreads + i, NULL, performClientActions, testArgs) != 0) {
-            printf("%lu\n", i);
-            perror("pthread create");
-            for (unsigned long long j = 0; j < i; ++j) {
-                pthread_kill(workerThreads[j], SIGINT);
-            }
-            break;
-        }
-    }
-    for (unsigned long long i = 0; i < core_count; ++i) {
-        pthread_join(workerThreads[i], NULL);
-    }
-
     pthread_t readThreads[core_count];
-    for (size_t i = 0; i < core_count; ++i) {
-        CPU_ZERO(&cpus);
-        CPU_SET(i, &cpus);
-        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
-        pthread_create(&readThreads[i], &attr, eventLoop, &epollfd);
-    }
-    pthread_attr_destroy(&attr);
+       for (size_t i = 0; i < core_count; ++i) {
+           CPU_ZERO(&cpus);
+           CPU_SET(i, &cpus);
+           pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+           pthread_create(&readThreads[i], &attr, eventLoop, &epollfd);
+       }
+       pthread_attr_destroy(&attr);
+
+       for (size_t i = 0; i < core_count; ++i) {
+           if (i == core_count - 1) {
+               testArgs->worker_count = (worker_count / core_count) + (worker_count % core_count);
+           } else {
+               testArgs->worker_count = worker_count / core_count;
+           }
+           if (pthread_create(workerThreads + i, NULL, performClientActions, testArgs) != 0) {
+               printf("%lu\n", i);
+               perror("pthread create");
+               for (unsigned long long j = 0; j < i; ++j) {
+                   pthread_kill(workerThreads[j], SIGINT);
+               }
+               break;
+           }
+       }
+       for (unsigned long long i = 0; i < core_count; ++i) {
+           pthread_join(workerThreads[i], NULL);
+       }
+
 
     sleep(connection_length);
     isRunning = false;
