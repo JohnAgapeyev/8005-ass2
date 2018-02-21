@@ -277,8 +277,11 @@ unsigned char *exchangeKeys(struct client *clientEntry) {
 
         EVP_PKEY *serverPubKey = setPublicKey(mesgBuffer + sizeof(uint16_t), ephemeralPubKeyLen);
 
+	printf("Send 1 key\n");
         sendSigningKey(clientEntry->socket, signPubKey, pubKeyLen);
+	printf("Send 2 key\n");
         sendEphemeralKey(clientEntry->socket, ephemeralPubKey, ephemeralPubKeyLen, hmac, hmaclen);
+	printf("Done\n");
 
         sharedSecret = getSharedSecret(ephemeralKey, serverPubKey);
 
@@ -432,6 +435,10 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
     }
     pthread_attr_destroy(&attr);
 
+#if 1
+    testArgs->worker_count = worker_count / core_count;
+    performClientActions(testArgs);
+#else
     for (size_t i = 0; i < core_count; ++i) {
         if (i == core_count - 1) {
             testArgs->worker_count = (worker_count / core_count) + (worker_count % core_count);
@@ -450,6 +457,7 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
     for (unsigned long long i = 0; i < core_count; ++i) {
         pthread_join(workerThreads[i], NULL);
     }
+#endif
 
     sleep(connection_length);
     isRunning = false;
@@ -506,6 +514,7 @@ void startServer(void) {
     }
     setNonBlocking(listenSock);
 
+#if 0
     const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
 
     pthread_attr_t attr;
@@ -527,6 +536,9 @@ void startServer(void) {
         pthread_kill(threads[i], SIGINT);
         pthread_join(threads[i], NULL);
     }
+#else
+    eventLoop(&epollfd);
+#endif
 
     if (isNormal) {
     } else if (isSelect) {
@@ -655,6 +667,7 @@ void *eventLoop(void *epollfd) {
                 } else {
                     if (likely(eventList[i].events & EPOLLIN)) {
                         if (eventList[i].data.ptr) {
+                            printf("Read event\n");
                             //Regular read connection
                             pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                             handleIncomingPacket(eventList[i].data.ptr);
@@ -670,6 +683,7 @@ void *eventLoop(void *epollfd) {
                                 unsigned char data[MAX_INPUT_SIZE];
                                 sendEncryptedUserData(data, MAX_INPUT_SIZE, eventList[i].data.ptr);
                                 clearSendBuffer(eventList[i].data.ptr);
+				printf("Sending data\n");
                             }
                         }
                     }
@@ -694,7 +708,7 @@ bool clearSendBuffer(struct client *src) {
     }
     //Try and send packet buffer until EAGAIN, or empty
 resend:
-    n = send(src->socket, src->sendBuf + (MAX_PACKET_SIZE - 2 - src->bytesToSend), src->bytesToSend, MSG_NOSIGNAL);
+    n = send(src->socket, src->sendBuf + (MAX_PACKET_SIZE - 0 - src->bytesToSend), src->bytesToSend, MSG_NOSIGNAL);
     if (n == -1) {
         switch(errno) {
             case EAGAIN:
@@ -1092,7 +1106,7 @@ void handleSocketError(struct client *entry) {
  * This allows a staggered read to accurately receive dynamic length packets.
  */
 int16_t readPacketLength(const int sock) {
-    uint16_t sizeToRead = 0;
+    int16_t sizeToRead = -25;
     int n = spinRead(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
     if (n == -1) {
         return -1;
