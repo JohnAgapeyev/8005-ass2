@@ -402,67 +402,66 @@ void *performClientActions(void *args) {
  * RETURNS:
  * void
  */
-void startClient(const char *ip, const char *portString, const unsigned long long worker_count, const unsigned long connection_length) {
-    network_init();
-    if(isNormal){
+ void startClient(const char *ip, const char *portString, const unsigned long long worker_count, const unsigned long connection_length) {
+     network_init();
 
-    }
-    pthread_t workerThreads[worker_count];
+     pthread_t workerThreads[worker_count];
 
-    int epollfd = createEpollFd();
+     int epollfd = createEpollFd();
 
-    struct client_args *testArgs = checked_malloc(sizeof(struct client_args));
-    testArgs->ip = ip;
-    testArgs->portString = portString;
-    testArgs->connection_length = connection_length;
-    testArgs->epollfd = epollfd;
+     struct client_args *testArgs = checked_malloc(sizeof(struct client_args));
+     testArgs->ip = ip;
+     testArgs->portString = portString;
+     testArgs->connection_length = connection_length;
+     testArgs->epollfd = epollfd;
 
-    const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
+     const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
 
-  pthread_attr_t attr;
-  pthread_attr_init(&attr);
-  cpu_set_t cpus;
+     pthread_attr_t attr;
+     pthread_attr_init(&attr);
+     cpu_set_t cpus;
 
-  for (size_t i = 0; i < core_count; ++i) {
-      if (i == core_count - 1) {
-          testArgs->worker_count = (worker_count / core_count) + (worker_count % core_count);
-      } else {
-          testArgs->worker_count = worker_count / core_count;
-      }
-      if (pthread_create(workerThreads + i, NULL, performClientActions, testArgs) != 0) {
-          printf("%lu\n", i);
-          perror("pthread create");
-          for (unsigned long long j = 0; j < i; ++j) {
-              pthread_kill(workerThreads[j], SIGINT);
-          }
-          break;
-      }
-  }
-  for (unsigned long long i = 0; i < core_count; ++i) {
-      pthread_join(workerThreads[i], NULL);
-  }
+     for (size_t i = 0; i < core_count; ++i) {
+         if (i == core_count - 1) {
+             testArgs->worker_count = (worker_count / core_count) + (worker_count % core_count);
+         } else {
+             testArgs->worker_count = worker_count / core_count;
+         }
+         if (pthread_create(workerThreads + i, NULL, performClientActions, testArgs) != 0) {
+             printf("%lu\n", i);
+             perror("pthread create");
+             for (unsigned long long j = 0; j < i; ++j) {
+                 pthread_kill(workerThreads[j], SIGINT);
+             }
+             break;
+         }
+     }
+     for (unsigned long long i = 0; i < core_count; ++i) {
+         pthread_join(workerThreads[i], NULL);
+     }
 
-  pthread_t readThreads[core_count];
-  for (size_t i = 0; i < core_count; ++i) {
-      CPU_ZERO(&cpus);
-      CPU_SET(i, &cpus);
-      pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
-      pthread_create(&readThreads[i], &attr, eventLoop, &epollfd);
-  }
-  pthread_attr_destroy(&attr);
+     pthread_t readThreads[core_count];
+     for (size_t i = 0; i < core_count; ++i) {
+         CPU_ZERO(&cpus);
+         CPU_SET(i, &cpus);
+         pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+         pthread_create(&readThreads[i], &attr, eventLoop, &epollfd);
+     }
+     pthread_attr_destroy(&attr);
 
-  sleep(connection_length);
-  isRunning = false;
+     sleep(connection_length);
+     isRunning = false;
 
-  for (unsigned long long i = 0; i < core_count; ++i) {
-      pthread_kill(readThreads[i], SIGKILL);
-      pthread_join(readThreads[i], NULL);
-  }
+     for (unsigned long long i = 0; i < core_count; ++i) {
+         pthread_kill(readThreads[i], SIGKILL);
+         pthread_join(readThreads[i], NULL);
+     }
 
-  free(testArgs);
-  close(epollfd);
-network_cleanup();
-}
+     free(testArgs);
+     close(epollfd);
+     network_cleanup();
+ }
+
 
 /*
  * FUNCTION: startServer
@@ -570,36 +569,36 @@ void startServer(void) {
  * NOTES:
  * Both client and server read threads run this function.
  */
-void *eventLoop(void *epollfd) {
-    int efd = *((int *)epollfd);
+ void *eventLoop(void *epollfd) {
+     int efd = *((int *)epollfd);
 
-    if (isNormal) {
-        while(isRunning){
-            pthread_mutex_lock(&clientLock);
-            size_t tmpCount = clientMax;
-            pthread_mutex_unlock(&clientLock);
-            if(isServer){
-                handleIncomingConnection(listenSock);
-            }
-                for(size_t l = 0; l < tmpCount; ++l){
-                    pthread_mutex_lock(&clientLock);
-                    struct client *src = clientList[l];
-                    pthread_mutex_unlock(&clientLock);
-                    if(src && src->enabled){
-                        if(isServer){
-                                pthread_mutex_lock(src->lock);
-                                handleIncomingPacket(src);
-                                pthread_mutex_unlock(src->lock);
-                        } else {
-                            unsigned char data[MAX_INPUT_SIZE];
-                            //pthread_mutex_lock(src->lock);
-                              sendEncryptedUserData(data, MAX_INPUT_SIZE, src);
-                            //pthread_mutex_unlock(src->lock);
-                        }
-                    }
-                }
-        }
-    }  else if(isSelect) {
+     if (isNormal) {
+         while(isRunning){
+             pthread_mutex_lock(&clientLock);
+             size_t tmpCount = clientMax;
+             pthread_mutex_unlock(&clientLock);
+             if(isServer){
+                 handleIncomingConnection(listenSock);
+             }
+                 for(size_t l = 0; l < tmpCount; ++l){
+                     pthread_mutex_lock(&clientLock);
+                     struct client *src = clientList[l];
+                     pthread_mutex_unlock(&clientLock);
+                     if(src && src->enabled){
+                         if(isServer){
+                                 pthread_mutex_lock(src->lock);
+                                 handleIncomingPacket(src);
+                                 pthread_mutex_unlock(src->lock);
+                         } else {
+                             unsigned char data[MAX_INPUT_SIZE];
+                             //pthread_mutex_lock(src->lock);
+                               sendEncryptedUserData(data, MAX_INPUT_SIZE, src);
+                             //pthread_mutex_unlock(src->lock);
+                         }
+                     }
+                 }
+         }
+ }  else if(isSelect) {
         while (isRunning) {
             fd_set rdset;
             fd_set wrset;
