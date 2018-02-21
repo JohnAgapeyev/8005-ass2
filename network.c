@@ -193,10 +193,36 @@ void process_packet(const unsigned char * const buffer, const size_t bufsize, st
         src->averageUs = src->averageUs * (src->packetCount - 1)
             / src->packetCount + responseTime / src->packetCount;
     }
-
-    if (isServer) {
+    if (!isServer) {
         //Echo the packet
         sendEncryptedUserData(buffer, bufsize, src);
+        //printf("New bytes send %d\n", src->bytesToSend);
+#if 0
+        ssize_t n;
+resend:
+        n = send(src->socket, src->sendBuf + (MAX_PACKET_SIZE - src->bytesToSend) - 0, src->bytesToSend, MSG_NOSIGNAL);
+        if (n == -1) {
+            switch(errno) {
+                case EAGAIN:
+                    return;
+                case EINTR:
+                    goto resend;
+                    break;
+                case EPIPE:
+                case ECONNRESET:
+                    handleSocketError(src);
+                    return;
+                default:
+                    perror("Socket send");
+                    return;
+            }
+        } else if (n > 0) {
+            src->bytesToSend -= n;
+            if (src->bytesToSend) {
+                goto resend;
+            }
+        }
+#endif
     }
 }
 
@@ -358,7 +384,7 @@ void *performClientActions(void *args) {
 
         unsigned char *sharedSecret = exchangeKeys(serverEntry);
 
-        printf("Handshake complete on socket %d\n", serverSock);
+        //printf("Handshake complete on socket %d\n", serverSock);
 
         debug_print_buffer("Shared secret: ", sharedSecret, SYMMETRIC_KEY_SIZE);
 
@@ -497,7 +523,7 @@ void startServer(void) {
         epollfd = createEpollFd();
 
         struct epoll_event ev;
-        ev.events = EPOLLIN | EPOLLET;
+        ev.events = EPOLLIN  | EPOLLOUT | EPOLLET;
         ev.data.ptr = NULL;
 
         addEpollSocket(epollfd, listenSock, &ev);
@@ -535,9 +561,9 @@ void startServer(void) {
     for (size_t i = 0; i < clientMax; ++i) {
         if (clientList[i]) {
             printf("Socket: %d\n", clientList[i]->socket);
-            printf("Packet count: %llu\n", clientList[i]->packetCount);
-            printf("Bytes sent: %llu\n", clientList[i]->bytesSent);
-            printf("Average response in micro: %llu\n", clientList[i]->averageUs);
+            printf("Packet count: %lu\n", clientList[i]->packetCount);
+            printf("Bytes sent: %lu\n", clientList[i]->bytesSent);
+            printf("Average response in micro: %lu\n", clientList[i]->averageUs);
         }
     }
 
@@ -576,27 +602,27 @@ void *eventLoop(void *epollfd) {
             pthread_mutex_lock(&clientLock);
             size_t tempCount = clientMax;
             pthread_mutex_unlock(&clientLock);
-                for(size_t l = 0; l < tempCount; ++l){
-                    if(isServer){
-                        handleIncomingConnection(listenSock);
-                        pthread_mutex_lock(&clientLock);
-                        struct client *src = clientList[l];
-                        pthread_mutex_unlock(&clientLock);
-                            if(src && src->enabled){
-                                pthread_mutex_lock(src->lock);
-                                handleIncomingPacket(src);
-                                pthread_mutex_unlock(src->lock);
-                            }
-                        } else {
-                            pthread_mutex_lock(&clientLock);
-                            struct client *src = clientList[l];
-                            pthread_mutex_unlock(&clientLock);
-                            unsigned char data[MAX_INPUT_SIZE];
-                            if(src && src->enabled){
-                            sendEncryptedUserData(data, MAX_INPUT_SIZE, src);
-                            }
+            for(size_t l = 0; l < tempCount; ++l){
+                if(isServer){
+                    handleIncomingConnection(listenSock);
+                    pthread_mutex_lock(&clientLock);
+                    struct client *src = clientList[l];
+                    pthread_mutex_unlock(&clientLock);
+                    if(src && src->enabled){
+                        pthread_mutex_lock(src->lock);
+                        handleIncomingPacket(src);
+                        pthread_mutex_unlock(src->lock);
+                    }
+                } else {
+                    pthread_mutex_lock(&clientLock);
+                    struct client *src = clientList[l];
+                    pthread_mutex_unlock(&clientLock);
+                    unsigned char data[MAX_INPUT_SIZE];
+                    if(src && src->enabled){
+                        sendEncryptedUserData(data, MAX_INPUT_SIZE, src);
                     }
                 }
+            }
         }
     } else if(isSelect) {
         while (isRunning) {
@@ -647,22 +673,79 @@ void *eventLoop(void *epollfd) {
             for (int i = 0; i < n; ++i) {
                 if (unlikely(eventList[i].events & EPOLLERR || eventList[i].events & EPOLLHUP
                             || eventList[i].events & EPOLLRDHUP)) {
+                            pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                     handleSocketError(eventList[i].data.ptr);
+                            pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                 } else {
                     if (likely(eventList[i].events & EPOLLIN)) {
                         if (eventList[i].data.ptr) {
                             //Regular read connection
-                                pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
-                                handleIncomingPacket(eventList[i].data.ptr);
-                                pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                            pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
+                            handleIncomingPacket(eventList[i].data.ptr);
+                            pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                         } else {
                             //Null data pointer means listen socket has incoming connection
                             handleIncomingConnection(efd);
                         }
                     }
                     if (likely(eventList[i].events & EPOLLOUT)) {
-                        unsigned char data[MAX_INPUT_SIZE];
-                        sendEncryptedUserData(data, MAX_INPUT_SIZE, eventList[i].data.ptr);
+                            //printf("Write event\n");
+                        pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
+                        struct client *src = eventList[i].data.ptr;
+			printf("Socket read event: %d\n",  src->socket);
+                        ssize_t n;
+
+                        //printf("Bytes to send: %d\n", src->bytesToSend);
+
+                        if (src->bytesToSend == 0) {
+                            goto nosend;
+                        }
+                        //Try and send packet buffer until EAGAIN, or empty
+resend:
+			//printf("%p %02x\n", src->sendBuf + (MAX_PACKET_SIZE - 1 - src->bytesToSend), src->sendBuf[(MAX_PACKET_SIZE - src->bytesToSend)]);
+			//printf("Count: %d\n", src->bytesToSend);
+                        n = send(src->socket, src->sendBuf + (MAX_PACKET_SIZE - 2 - src->bytesToSend), src->bytesToSend, MSG_NOSIGNAL);
+                        if (n != 0) {
+                            printf("Sending %ld\n", n);
+			    printf("Crap: %ld\n", src->bytesToSend);
+                        }
+                        if (n == -1) {
+                            switch(errno) {
+                                case EAGAIN:
+                                    pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                                    continue;
+                                case EINTR:
+                                    goto resend;
+                                    break;
+                                case EPIPE:
+                                case ECONNRESET:
+                                    handleSocketError(src);
+                                    pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                                    continue;
+                                default:
+                                    perror("Socket send");
+                                    pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                                    continue;
+                            }
+                        } else if (n > 0) {
+				if (src->bytesToSend < n) {
+					printf("HOW COULD THIS HAPPEN TO ME\n");
+					abort();
+				}
+                            src->bytesToSend -= n;
+                            if (src->bytesToSend) {
+                                goto resend;
+                            }
+                        } else {
+nosend:
+                            if (!isServer) {
+                                unsigned char data[MAX_INPUT_SIZE];
+                                sendEncryptedUserData(data, MAX_INPUT_SIZE, eventList[i].data.ptr);
+                                //printf("New bytes send %d\n", src->bytesToSend);
+                                goto resend;
+                            }
+                            pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                        }
                     }
                 }
             }
@@ -762,6 +845,9 @@ void initClientStruct(struct client *newClient, int sock) {
     newClient->bytesSent = 0;
     newClient->averageUs = 0;
     newClient->startUs = 0;
+
+    newClient->sendBuf = checked_malloc(MAX_PACKET_SIZE);
+    newClient->bytesToSend = 0;
 }
 
 /*
@@ -831,9 +917,29 @@ void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, stru
     debug_print("Sending packet of length: %zu\n", packetLength + sizeof(uint16_t));
     debug_print_buffer("Sent tag: ", out + sizeof(uint16_t) + mesgLen + IV_SIZE, TAG_SIZE);
     debug_print_buffer("Sending packets with contents: ", out, packetLength + sizeof(uint16_t));
+    
+    if (dest->bytesToSend != 0) {
+	printf("Problem!\n");
+	abort();
+    }
 
+    //memset(dest->sendBuf, 0, MAX_PACKET_SIZE);
+
+#if 1
+    if (!isServer) {
+    memcpy(dest->sendBuf, out, packetLength + sizeof(uint16_t));
+    dest->bytesToSend = packetLength + sizeof(uint16_t);
+    } else {
     //Write the packet to the socket
     rawSend(dest->socket, out, packetLength + sizeof(uint16_t));
+    printf("Server sending\n");
+    }
+#else
+    memcpy(dest->sendBuf, out, packetLength + sizeof(uint16_t));
+    dest->bytesToSend = packetLength + sizeof(uint16_t);
+    //Write the packet to the socket
+    //rawSend(dest->socket, out, packetLength + sizeof(uint16_t));
+#endif
 
     struct timespec start;
 
@@ -943,7 +1049,7 @@ void handleIncomingConnection(const int efd) {
             createSelectFd(&rdsetbackup, sock, &maxfd);
         } else if(isEpoll){
             struct epoll_event ev;
-            ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+            ev.events = EPOLLIN | EPOLLOUT | EPOLLET | EPOLLRDHUP;
             ev.data.ptr = newClientEntry;
 
             addEpollSocket(efd, sock, &ev);
@@ -1012,7 +1118,7 @@ void handleSocketError(struct client *entry) {
  * This allows a staggered read to accurately receive dynamic length packets.
  */
 int16_t readPacketLength(const int sock) {
-    int16_t sizeToRead = 0;
+    uint16_t sizeToRead = 0;
     int n = spinRead(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
     if (n == -1) {
         return -1;
@@ -1048,10 +1154,12 @@ int16_t readPacketLength(const int sock) {
  * Handles the staggered and full read, before passing the packet off.
  */
 void handleIncomingPacket(struct client *src) {
+	puts("Fuck me");
     const int sock = src->socket;
     unsigned char buffer[MAX_PACKET_SIZE];
     for (;;) {
         int16_t sizeToRead = readPacketLength(sock);
+	printf("Got some size\n");
         if (sizeToRead == -1) {
             //Client has left us
             handleSocketError(src);
@@ -1060,10 +1168,12 @@ void handleIncomingPacket(struct client *src) {
         if (sizeToRead == 0) {
             break;
         }
+	printf("Size to read %d\n", sizeToRead);
         memcpy(buffer, &sizeToRead, sizeof(uint16_t));
         ssize_t len;
         errno = 0;
         len = spinRead(sock, buffer + sizeof(uint16_t), sizeToRead);
+	printf("Packet size read: %ld\n", len);
         if (len == 0) {
             return;
         }
@@ -1071,6 +1181,7 @@ void handleIncomingPacket(struct client *src) {
             handleSocketError(src);
             return;
         }
+	printf("Decrypting shit\n");
         debug_print_buffer("Raw Received packet: ", buffer, sizeToRead + sizeof(uint16_t));
         decryptReceivedUserData(buffer, sizeToRead + sizeof(uint16_t), src);
         break;

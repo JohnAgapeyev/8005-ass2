@@ -252,8 +252,8 @@ int main(int argc, char **argv) {
         exit(0);
     }
 
-    limit.rlim_max = USHRT_MAX;
-    limit.rlim_cur = limit.rlim_max;
+    //limit.rlim_max = USHRT_MAX;
+    //limit.rlim_cur = limit.rlim_max;
 
     printf("Setting soft limit: %lu\n", limit.rlim_cur);
 
@@ -268,7 +268,7 @@ int main(int argc, char **argv) {
     }
 
     //limit.rlim_max = USHRT_MAX;
-    limit.rlim_cur = limit.rlim_max;
+    //limit.rlim_cur = limit.rlim_max;
 
     printf("Setting soft limit: %lu\n", limit.rlim_cur);
     if (setrlimit(RLIMIT_NPROC, &limit) != 0) {

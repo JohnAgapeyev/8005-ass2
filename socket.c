@@ -353,6 +353,7 @@ keepReading:
     errno = 0;
     n = readNBytes(sock, buf, bufsize);
     if (n == -1) {
+	    perror("Not again");
         //Read returned bad error
         return -1;
     }
@@ -360,12 +361,14 @@ keepReading:
         if (errno == EAGAIN) {
             goto keepReading;
         } else {
+	    printf("Ouchie\n");
 		perror("SpinRead");
             //Recv returned 0 without EAGAIN, client has left us
             return 0;
         }
     }
     if ((size_t) n == bufsize) {
+	    printf("Done spinning\n");
         return origBufSize;
     } else {
         bufsize -= n;

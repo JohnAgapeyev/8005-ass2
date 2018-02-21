@@ -53,6 +53,8 @@ struct client {
     uint64_t bytesSent;
     uint64_t averageUs;
     uint64_t startUs;
+    unsigned char *sendBuf;
+    size_t bytesToSend;
 };
 
 struct client_args {
