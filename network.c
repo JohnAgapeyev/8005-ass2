@@ -195,7 +195,7 @@ void process_packet(const unsigned char * const buffer, const size_t bufsize, st
         src->averageUs = src->averageUs * (src->packetCount - 1)
             / src->packetCount + responseTime / src->packetCount;
     }
-    if (!isServer) {
+    if (isServer) {
         //Echo the packet
         sendEncryptedUserData(buffer, bufsize, src);
         clearSendBuffer(src);
@@ -697,7 +697,7 @@ void *eventLoop(void *epollfd) {
 
 //Returns true only when buffer has been fully cleared without EAGAIN, otherwise returns false
 bool clearSendBuffer(struct client *src) {
-    pthread_mutex_lock(src->lock);
+    //pthread_mutex_lock(src->lock);
     ssize_t n;
     bool rtn = false;
 
@@ -739,7 +739,7 @@ resend:
         rtn = true;
     }
 cleanup:
-    pthread_mutex_unlock(src->lock);
+    //pthread_mutex_unlock(src->lock);
     return rtn;
 }
 
