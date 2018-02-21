@@ -277,11 +277,11 @@ unsigned char *exchangeKeys(struct client *clientEntry) {
 
         EVP_PKEY *serverPubKey = setPublicKey(mesgBuffer + sizeof(uint16_t), ephemeralPubKeyLen);
 
-	printf("Send 1 key\n");
+        printf("Send 1 key\n");
         sendSigningKey(clientEntry->socket, signPubKey, pubKeyLen);
-	printf("Send 2 key\n");
+        printf("Send 2 key\n");
         sendEphemeralKey(clientEntry->socket, ephemeralPubKey, ephemeralPubKeyLen, hmac, hmaclen);
-	printf("Done\n");
+        printf("Done\n");
 
         sharedSecret = getSharedSecret(ephemeralKey, serverPubKey);
 
@@ -435,7 +435,7 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
     }
     pthread_attr_destroy(&attr);
 
-#if 1
+#if 0
     testArgs->worker_count = worker_count / core_count;
     performClientActions(testArgs);
 #else
@@ -514,7 +514,7 @@ void startServer(void) {
     }
     setNonBlocking(listenSock);
 
-#if 0
+#if 1
     const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
 
     pthread_attr_t attr;
@@ -667,7 +667,7 @@ void *eventLoop(void *epollfd) {
                 } else {
                     if (likely(eventList[i].events & EPOLLIN)) {
                         if (eventList[i].data.ptr) {
-                            printf("Read event\n");
+                            //printf("Read event\n");
                             //Regular read connection
                             pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                             handleIncomingPacket(eventList[i].data.ptr);
@@ -678,12 +678,16 @@ void *eventLoop(void *epollfd) {
                         }
                     }
                     if (likely(eventList[i].events & EPOLLOUT)) {
+                        pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                         if (clearSendBuffer(eventList[i].data.ptr)) {
+                            pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                             if (!isServer) {
                                 unsigned char data[MAX_INPUT_SIZE];
                                 sendEncryptedUserData(data, MAX_INPUT_SIZE, eventList[i].data.ptr);
+                                pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                                 clearSendBuffer(eventList[i].data.ptr);
-				printf("Sending data\n");
+                                pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                                //printf("Sending data\n");
                             }
                         }
                     }
@@ -1154,12 +1158,12 @@ void handleIncomingPacket(struct client *src) {
         if (sizeToRead == 0) {
             break;
         }
-        printf("Size to read %d\n", sizeToRead);
+        //printf("Size to read %d\n", sizeToRead);
         memcpy(buffer, &sizeToRead, sizeof(uint16_t));
         ssize_t len;
         errno = 0;
         len = spinRead(sock, buffer + sizeof(uint16_t), sizeToRead);
-        printf("Packet size read: %ld\n", len);
+        //printf("Packet size read: %ld\n", len);
         if (len == 0) {
             return;
         }
