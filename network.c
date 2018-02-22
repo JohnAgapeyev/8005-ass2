@@ -543,6 +543,10 @@ void startServer(void) {
         ev.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
         ev.data.ptr = NULL;
 
+        for (size_t i = 0; i < core_count; ++i) {
+            addEpollSocket(epolls[i], listenSock, &ev);
+        }
+
         addEpollSocket(epolls[core_count], listenSock, &ev);
     }
     setNonBlocking(listenSock);
@@ -554,10 +558,10 @@ void startServer(void) {
     pthread_t threads[core_count];
     for (size_t i = 0; i < core_count; ++i) {
         CPU_ZERO(&cpus);
-        CPU_SET(i, &cpus);
+        CPU_SET(i % core_count, &cpus);
         pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
         //pthread_create(&threads[i], &attr, eventLoop, &epollfd);
-        pthread_create(&threads[i], &attr, eventLoop, &(int){i});
+        pthread_create(&threads[i], &attr, eventLoop, &(int){i % core_count});
     }
     pthread_attr_destroy(&attr);
 
@@ -700,9 +704,9 @@ void startServer(void) {
                     if (likely(eventList[i].events & EPOLLIN)) {
                         if (eventList[i].data.ptr) {
                             //Regular read connection
-                                pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
+                                //pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
                                 handleIncomingPacket(eventList[i].data.ptr);
-                                pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                                //pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                         } else {
                             //Null data pointer means listen socket has incoming connection
                             handleIncomingConnection(efd);
@@ -996,11 +1000,13 @@ void handleIncomingConnection(const int efd) {
 
             const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
 
+            pthread_mutex_lock(&clientLock);
             addEpollSocket(epolls[iCli], sock, &ev);
 
             pthread_cond_signal(cvs + iCli);
 
             iCli = (iCli + 1) % core_count;
+            pthread_mutex_unlock(&clientLock);
         }
     }
 }
