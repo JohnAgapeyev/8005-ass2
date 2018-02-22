@@ -75,6 +75,11 @@ pthread_mutex_t selectLock;
 fd_set rdsetbackup;
 fd_set wrsetbackup;
 
+pthread_mutex_t *cvmuts;
+pthread_cond_t *cvs;
+int *epolls;
+int iCli = 0;
+
 /*
  * FUNCTION: network_init
  *
@@ -107,6 +112,19 @@ void network_init(void) {
 
     FD_ZERO(&rdsetbackup);
     FD_ZERO(&wrsetbackup);
+
+
+    const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
+
+    cvmuts = checked_calloc(core_count, sizeof(pthread_mutex_t));
+    cvs = checked_calloc(core_count, sizeof(pthread_cond_t));
+    epolls = checked_calloc(core_count + 1, sizeof(int));
+
+    for (size_t i = 0; i < core_count; ++i) {
+        pthread_mutex_init(cvmuts + i, NULL);
+        pthread_cond_init(cvs + i, NULL);
+        epolls[i] = createEpollFd();
+    }
 }
 
 /*
@@ -144,6 +162,19 @@ void network_cleanup(void) {
     pthread_mutex_destroy(&selectLock);
     free(clientList);
     cleanupCrypto();
+
+    const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
+
+    for (size_t i = 0; i < core_count; ++i) {
+        pthread_mutex_destroy(cvmuts + i);
+        pthread_cond_destroy(cvs + i);
+        close(epolls[i]);
+    }
+    close(epolls[core_count + 1]);
+
+    free(cvmuts);
+    free(cvs);
+    free(epolls);
 }
 
 /*
@@ -370,10 +401,18 @@ void *performClientActions(void *args) {
         } else if (isEpoll) {
             int epollfd = ((struct client_args *) args)->epollfd;
             struct epoll_event ev;
-            ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP | EPOLLOUT;
+            ev.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE | EPOLLOUT;
             ev.data.ptr = serverEntry;
 
-            addEpollSocket(epollfd, serverSock, &ev);
+            //addEpollSocket(epollfd, serverSock, &ev);
+
+            const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
+
+            addEpollSocket(epolls[iCli], serverSock, &ev);
+
+            pthread_cond_signal(cvs + iCli);
+
+            iCli = (iCli + 1) % core_count;
         }
     }
     return NULL;
@@ -407,19 +446,31 @@ void *performClientActions(void *args) {
 
      pthread_t workerThreads[worker_count];
 
-     int epollfd = createEpollFd();
+     //int epollfd = createEpollFd();
 
      struct client_args *testArgs = checked_malloc(sizeof(struct client_args));
      testArgs->ip = ip;
      testArgs->portString = portString;
      testArgs->connection_length = connection_length;
-     testArgs->epollfd = epollfd;
+     testArgs->epollfd = 0;
 
      const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
 
      pthread_attr_t attr;
      pthread_attr_init(&attr);
      cpu_set_t cpus;
+
+     pthread_t readThreads[core_count];
+     for (size_t i = 0; i < core_count; ++i) {
+         CPU_ZERO(&cpus);
+         CPU_SET(i, &cpus);
+         pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+         //pthread_create(&readThreads[i], &attr, eventLoop, &epollfd);
+         pthread_create(&readThreads[i], &attr, eventLoop, &(int){i});
+     }
+     pthread_attr_destroy(&attr);
+
+     sleep(1);
 
      for (size_t i = 0; i < core_count; ++i) {
          if (i == core_count - 1) {
@@ -440,15 +491,6 @@ void *performClientActions(void *args) {
          pthread_join(workerThreads[i], NULL);
      }
 
-     pthread_t readThreads[core_count];
-     for (size_t i = 0; i < core_count; ++i) {
-         CPU_ZERO(&cpus);
-         CPU_SET(i, &cpus);
-         pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
-         pthread_create(&readThreads[i], &attr, eventLoop, &epollfd);
-     }
-     pthread_attr_destroy(&attr);
-
      sleep(connection_length);
      isRunning = false;
 
@@ -458,7 +500,7 @@ void *performClientActions(void *args) {
      }
 
      free(testArgs);
-     close(epollfd);
+     //close(epollfd);
      network_cleanup();
  }
 
@@ -488,57 +530,51 @@ void *performClientActions(void *args) {
  * Performs similar functions to startClient, except for the inital connection.
  */
 void startServer(void) {
+    const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
     network_init();
-    int epollfd = -1;
     if (isNormal) {
 
     } else if (isSelect) {
         createSelectFd(&rdsetbackup, listenSock, &maxfd);
     } else if (isEpoll) {
-        epollfd = createEpollFd();
+        epolls[core_count] = createEpollFd();
 
         struct epoll_event ev;
-        ev.events = EPOLLIN | EPOLLET;
+        ev.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
         ev.data.ptr = NULL;
 
-        addEpollSocket(epollfd, listenSock, &ev);
+        addEpollSocket(epolls[core_count], listenSock, &ev);
     }
     setNonBlocking(listenSock);
-
-    const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
 
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     cpu_set_t cpus;
 
-    pthread_t threads[core_count - 1];
-    for (size_t i = 0; i < core_count - 1; ++i) {
+    pthread_t threads[core_count];
+    for (size_t i = 0; i < core_count; ++i) {
         CPU_ZERO(&cpus);
         CPU_SET(i, &cpus);
         pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
-        pthread_create(&threads[i], &attr, eventLoop, &epollfd);
+        //pthread_create(&threads[i], &attr, eventLoop, &epollfd);
+        pthread_create(&threads[i], &attr, eventLoop, &(int){i});
     }
     pthread_attr_destroy(&attr);
 
-    eventLoop(&epollfd);
+    //eventLoop(&epollfd);
+    eventLoop(&(int){core_count});
 
-    for (size_t i = 0; i < core_count - 1; ++i) {
+    for (size_t i = 0; i < core_count; ++i) {
         pthread_kill(threads[i], SIGINT);
         pthread_join(threads[i], NULL);
-    }
-
-    if (isNormal) {
-    } else if (isSelect) {
-    } else if (isEpoll) {
-        close(epollfd);
     }
 
     for (size_t i = 0; i < clientMax; ++i) {
         if (clientList[i]) {
             printf("Socket: %d\n", clientList[i]->socket);
-            printf("Packet count: %llu\n", clientList[i]->packetCount);
-            printf("Bytes sent: %llu\n", clientList[i]->bytesSent);
-            printf("Average response in micro: %llu\n", clientList[i]->averageUs);
+            printf("Packet count: %ld\n", clientList[i]->packetCount);
+            printf("Bytes sent: %ld\n", clientList[i]->bytesSent);
+            printf("Average response in micro: %ld\n", clientList[i]->averageUs);
         }
     }
 
@@ -570,7 +606,7 @@ void startServer(void) {
  * Both client and server read threads run this function.
  */
  void *eventLoop(void *epollfd) {
-     int efd = *((int *)epollfd);
+     int pos = *((int *)epollfd);
 
      if (isNormal) {
          while(isRunning){
@@ -639,6 +675,18 @@ void startServer(void) {
         }
     } else if(isEpoll) {
         struct epoll_event *eventList = checked_calloc(MAX_EPOLL_EVENTS, sizeof(struct epoll_event));
+
+        const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
+
+        int efd = epolls[pos];
+
+	printf("Pre wait %d\n", pos);
+
+        if (pos < core_count) {
+            pthread_cond_wait(cvs + pos, cvmuts + pos);
+        }
+
+	printf("Post wait %d\n", pos);
 
         while (isRunning) {
             int n = waitForEpollEvent(efd, eventList);
@@ -943,10 +991,16 @@ void handleIncomingConnection(const int efd) {
             createSelectFd(&rdsetbackup, sock, &maxfd);
         } else if(isEpoll){
             struct epoll_event ev;
-            ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+            ev.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE;
             ev.data.ptr = newClientEntry;
 
-            addEpollSocket(efd, sock, &ev);
+            const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
+
+            addEpollSocket(epolls[iCli], sock, &ev);
+
+            pthread_cond_signal(cvs + iCli);
+
+            iCli = (iCli + 1) % core_count;
         }
     }
 }
