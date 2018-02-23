@@ -569,7 +569,7 @@ void startServer(void) {
     eventLoop(&(int){core_count});
 
     for (size_t i = 0; i < core_count; ++i) {
-        pthread_kill(threads[i], SIGINT);
+        pthread_kill(threads[i], SIGKILL);
         pthread_join(threads[i], NULL);
     }
 
