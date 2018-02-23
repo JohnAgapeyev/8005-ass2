@@ -578,18 +578,34 @@ void startServer(void) {
              if(isServer){
                  handleIncomingConnection(listenSock);
              }
-             pthread_mutex_lock(&clientLock);
-             size_t tmpCount = clientMax;
-             pthread_mutex_unlock(&clientLock);
+             size_t tmpCount;
+             if(pthread_mutex_trylock(&clientLock)){
+                tmpCount = clientMax;
+                pthread_mutex_unlock(&clientLock);
+             } else {
+                sched_yield();
+                continue;
+             }
+             //pthread_mutex_lock(&clientLock);
+             //size_t tmpCount = clientMax;
+             //pthread_mutex_unlock(&clientLock);
                  for(size_t l = 0; l < tmpCount; ++l){
-                     pthread_mutex_lock(&clientLock);
-                     struct client *src = clientList[l];
-                     pthread_mutex_unlock(&clientLock);
+                     struct client *src;
+                     if(pthread_mutex_trylock(&clientLock)){
+                        src = clientList[l];
+                        pthread_mutex_unlock(&clientLock);
+                     } else {
+                        sched_yield();
+                        continue;
+                     }
                      if(src && src->enabled){
                          if(isServer){
                                  if(!pthread_mutex_trylock(src->lock)){
                                    handleIncomingPacket(src);
                                    pthread_mutex_unlock(src->lock);
+                                 } else {
+                                    sched_yield();
+                                    continue;
                                  }
                          } else {
                              unsigned char data[MAX_INPUT_SIZE];
