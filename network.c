@@ -587,9 +587,10 @@ void startServer(void) {
                      pthread_mutex_unlock(&clientLock);
                      if(src && src->enabled){
                          if(isServer){
-                                 pthread_mutex_lock(src->lock);
-                                 handleIncomingPacket(src);
-                                 pthread_mutex_unlock(src->lock);
+                                 if(!pthread_mutex_trylock(src->lock)){
+                                   handleIncomingPacket(src);
+                                   pthread_mutex_unlock(src->lock);
+                                 }
                          } else {
                              unsigned char data[MAX_INPUT_SIZE];
                              pthread_mutex_lock(src->lock);
