@@ -458,22 +458,27 @@ void *performClientActions(void *args) {
      pthread_attr_init(&attr);
      cpu_set_t cpus;
 
+     struct sched_param sc;
+     sc.sched_priority = 0;
+
      pthread_t readThreads[core_count];
      for (size_t i = 0; i < core_count; ++i) {
          CPU_ZERO(&cpus);
          CPU_SET(i % core_count, &cpus);
          pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
          pthread_create(&readThreads[i], &attr, eventLoop, &(int){i % core_count});
+	 pthread_setschedparam(readThreads[i], SCHED_BATCH, &sc);
      }
-     pthread_attr_destroy(&attr);
-
      for (size_t i = 0; i < core_count; ++i) {
          if (i == core_count - 1) {
              testArgs->worker_count = (worker_count / core_count) + (worker_count % core_count);
          } else {
              testArgs->worker_count = worker_count / core_count;
          }
-         if (pthread_create(workerThreads + i, NULL, performClientActions, testArgs) != 0) {
+         CPU_ZERO(&cpus);
+         CPU_SET(i % core_count, &cpus);
+         pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+         if (pthread_create(workerThreads + i, &attr, performClientActions, testArgs) != 0) {
              printf("%lu\n", i);
              perror("pthread create");
              for (unsigned long long j = 0; j < i; ++j) {
@@ -481,7 +486,9 @@ void *performClientActions(void *args) {
              }
              break;
          }
+	 pthread_setschedparam(workerThreads[i], SCHED_BATCH, &sc);
      }
+     pthread_attr_destroy(&attr);
      for (unsigned long long i = 0; i < core_count; ++i) {
          pthread_join(workerThreads[i], NULL);
      }
