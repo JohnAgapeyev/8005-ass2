@@ -446,8 +446,6 @@ void *performClientActions(void *args) {
 
      pthread_t workerThreads[worker_count];
 
-     //int epollfd = createEpollFd();
-
      struct client_args *testArgs = checked_malloc(sizeof(struct client_args));
      testArgs->ip = ip;
      testArgs->portString = portString;
@@ -463,14 +461,11 @@ void *performClientActions(void *args) {
      pthread_t readThreads[core_count];
      for (size_t i = 0; i < core_count; ++i) {
          CPU_ZERO(&cpus);
-         CPU_SET(i, &cpus);
+         CPU_SET(i % core_count, &cpus);
          pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
-         //pthread_create(&readThreads[i], &attr, eventLoop, &epollfd);
-         pthread_create(&readThreads[i], &attr, eventLoop, &(int){i});
+         pthread_create(&readThreads[i], &attr, eventLoop, &(int){i % core_count});
      }
      pthread_attr_destroy(&attr);
-
-     sleep(1);
 
      for (size_t i = 0; i < core_count; ++i) {
          if (i == core_count - 1) {
@@ -482,7 +477,7 @@ void *performClientActions(void *args) {
              printf("%lu\n", i);
              perror("pthread create");
              for (unsigned long long j = 0; j < i; ++j) {
-                 pthread_kill(workerThreads[j], SIGINT);
+                 pthread_kill(workerThreads[j], SIGKILL);
              }
              break;
          }
@@ -500,7 +495,6 @@ void *performClientActions(void *args) {
      }
 
      free(testArgs);
-     //close(epollfd);
      network_cleanup();
  }
 
@@ -560,12 +554,10 @@ void startServer(void) {
         CPU_ZERO(&cpus);
         CPU_SET(i % core_count, &cpus);
         pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
-        //pthread_create(&threads[i], &attr, eventLoop, &epollfd);
         pthread_create(&threads[i], &attr, eventLoop, &(int){i % core_count});
     }
     pthread_attr_destroy(&attr);
 
-    //eventLoop(&epollfd);
     eventLoop(&(int){core_count});
 
     for (size_t i = 0; i < core_count; ++i) {
@@ -684,13 +676,9 @@ void startServer(void) {
 
         int efd = epolls[pos];
 
-	printf("Pre wait %d\n", pos);
-
         if (pos < core_count) {
             pthread_cond_wait(cvs + pos, cvmuts + pos);
         }
-
-	printf("Post wait %d\n", pos);
 
         while (isRunning) {
             int n = waitForEpollEvent(efd, eventList);
