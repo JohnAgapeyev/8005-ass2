@@ -1,6 +1,6 @@
 CC=gcc
 BASEFLAGS=-Wall -Wextra -std=c11 -pedantic -D_POSIX_C_SOURCE=200809L
-DEBUGFLAGS=-ggdb -O0
+DEBUGFLAGS=-ggdb -O0 -DNDEBUG
 RELEASEFLAGS=-Ofast -march=native -flto -DNDEBUG
 CLIBS=-pthread -lcrypto
 EXEC=cryptepoll.elf

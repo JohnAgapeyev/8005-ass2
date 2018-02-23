@@ -441,69 +441,69 @@ void *performClientActions(void *args) {
  * RETURNS:
  * void
  */
- void startClient(const char *ip, const char *portString, const unsigned long long worker_count, const unsigned long connection_length) {
-     network_init();
+void startClient(const char *ip, const char *portString, const unsigned long long worker_count, const unsigned long connection_length) {
+    network_init();
 
-     pthread_t workerThreads[worker_count];
+    pthread_t workerThreads[worker_count];
 
-     struct client_args *testArgs = checked_malloc(sizeof(struct client_args));
-     testArgs->ip = ip;
-     testArgs->portString = portString;
-     testArgs->connection_length = connection_length;
-     testArgs->epollfd = 0;
+    struct client_args *testArgs = checked_malloc(sizeof(struct client_args));
+    testArgs->ip = ip;
+    testArgs->portString = portString;
+    testArgs->connection_length = connection_length;
+    testArgs->epollfd = 0;
 
-     const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
+    const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
 
-     pthread_attr_t attr;
-     pthread_attr_init(&attr);
-     cpu_set_t cpus;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    cpu_set_t cpus;
 
-     struct sched_param sc;
-     sc.sched_priority = 0;
+    struct sched_param sc;
+    sc.sched_priority = 0;
 
-     pthread_t readThreads[core_count];
-     for (size_t i = 0; i < core_count; ++i) {
-         CPU_ZERO(&cpus);
-         CPU_SET(i % core_count, &cpus);
-         pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
-         pthread_create(&readThreads[i], &attr, eventLoop, &(int){i % core_count});
-	 pthread_setschedparam(readThreads[i], SCHED_BATCH, &sc);
-     }
-     for (size_t i = 0; i < core_count; ++i) {
-         if (i == core_count - 1) {
-             testArgs->worker_count = (worker_count / core_count) + (worker_count % core_count);
-         } else {
-             testArgs->worker_count = worker_count / core_count;
-         }
-         CPU_ZERO(&cpus);
-         CPU_SET(i % core_count, &cpus);
-         pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
-         if (pthread_create(workerThreads + i, &attr, performClientActions, testArgs) != 0) {
-             printf("%lu\n", i);
-             perror("pthread create");
-             for (unsigned long long j = 0; j < i; ++j) {
-                 pthread_kill(workerThreads[j], SIGKILL);
-             }
-             break;
-         }
-	 pthread_setschedparam(workerThreads[i], SCHED_BATCH, &sc);
-     }
-     pthread_attr_destroy(&attr);
-     for (unsigned long long i = 0; i < core_count; ++i) {
-         pthread_join(workerThreads[i], NULL);
-     }
+    pthread_t readThreads[core_count];
+    for (size_t i = 0; i < core_count; ++i) {
+        CPU_ZERO(&cpus);
+        CPU_SET(i % core_count, &cpus);
+        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+        pthread_create(&readThreads[i], &attr, eventLoop, &(int){i % core_count});
+        pthread_setschedparam(readThreads[i], SCHED_BATCH, &sc);
+    }
+    for (size_t i = 0; i < core_count; ++i) {
+        if (i == core_count - 1) {
+            testArgs->worker_count = (worker_count / core_count) + (worker_count % core_count);
+        } else {
+            testArgs->worker_count = worker_count / core_count;
+        }
+        CPU_ZERO(&cpus);
+        CPU_SET(i % core_count, &cpus);
+        pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+        if (pthread_create(workerThreads + i, &attr, performClientActions, testArgs) != 0) {
+            printf("%lu\n", i);
+            perror("pthread create");
+            for (unsigned long long j = 0; j < i; ++j) {
+                pthread_kill(workerThreads[j], SIGKILL);
+            }
+            break;
+        }
+        pthread_setschedparam(workerThreads[i], SCHED_BATCH, &sc);
+    }
+    pthread_attr_destroy(&attr);
+    for (unsigned long long i = 0; i < core_count; ++i) {
+        pthread_join(workerThreads[i], NULL);
+    }
 
-     sleep(connection_length);
-     isRunning = false;
+    sleep(connection_length);
+    isRunning = false;
 
-     for (unsigned long long i = 0; i < core_count; ++i) {
-         pthread_kill(readThreads[i], SIGKILL);
-         pthread_join(readThreads[i], NULL);
-     }
+    for (unsigned long long i = 0; i < core_count; ++i) {
+        pthread_kill(readThreads[i], SIGKILL);
+        pthread_join(readThreads[i], NULL);
+    }
 
-     free(testArgs);
-     network_cleanup();
- }
+    free(testArgs);
+    network_cleanup();
+}
 
 
 /*
@@ -572,14 +572,18 @@ void startServer(void) {
         pthread_join(threads[i], NULL);
     }
 
+    FILE* fp;
+    fp = fopen("stats","w");
     for (size_t i = 0; i < clientMax; ++i) {
         if (clientList[i]) {
-            printf("Socket: %d\n", clientList[i]->socket);
-            printf("Packet count: %ld\n", clientList[i]->packetCount);
-            printf("Bytes sent: %ld\n", clientList[i]->bytesSent);
-            printf("Average response in micro: %ld\n", clientList[i]->averageUs);
+            fprintf(fp,"Socket: %d\n", clientList[i]->socket);
+            fprintf(fp,"Packet count: %ld\n", clientList[i]->packetCount);
+            fprintf(fp,"Bytes sent: %ld\n", clientList[i]->bytesSent);
+            fprintf(fp,"Average response in micro: %ld\n", clientList[i]->averageUs);
         }
     }
+
+    fclose(fp);
 
     network_cleanup();
 }
@@ -608,36 +612,41 @@ void startServer(void) {
  * NOTES:
  * Both client and server read threads run this function.
  */
- void *eventLoop(void *epollfd) {
-     int pos = *((int *)epollfd);
+void *eventLoop(void *epollfd) {
+    int pos = *((int *)epollfd);
 
-     if (isNormal) {
-         while(isRunning){
-             pthread_mutex_lock(&clientLock);
-             size_t tmpCount = clientMax;
-             pthread_mutex_unlock(&clientLock);
-             if(isServer){
-                 handleIncomingConnection(listenSock);
-             }
-                 for(size_t l = 0; l < tmpCount; ++l){
-                     pthread_mutex_lock(&clientLock);
-                     struct client *src = clientList[l];
-                     pthread_mutex_unlock(&clientLock);
-                     if(src && src->enabled){
-                         if(isServer){
-                                 pthread_mutex_lock(src->lock);
-                                 handleIncomingPacket(src);
-                                 pthread_mutex_unlock(src->lock);
-                         } else {
-                             unsigned char data[MAX_INPUT_SIZE];
-                             pthread_mutex_lock(src->lock);
-                               sendEncryptedUserData(data, MAX_INPUT_SIZE, src);
-                             pthread_mutex_unlock(src->lock);
-                         }
-                     }
-                 }
-         }
- }  else if(isSelect) {
+    if (isNormal) {
+        while(isRunning){
+            if(isServer){
+                handleIncomingConnection(listenSock);
+            }
+            pthread_mutex_lock(&clientLock);
+            size_t tmpCount = clientMax;
+            pthread_mutex_unlock(&clientLock);
+            for(size_t l = 0; l < tmpCount; ++l){
+                pthread_mutex_lock(&clientLock);
+                struct client *src = clientList[l];
+                pthread_mutex_unlock(&clientLock);
+
+                if(src && src->enabled){
+                    if(isServer){
+                        if(!pthread_mutex_trylock(src->lock)){
+                            handleIncomingPacket(src);
+                            pthread_mutex_unlock(src->lock);
+                        } else {
+                            sched_yield();
+                            continue;
+                        }
+                    } else {
+                        unsigned char data[MAX_INPUT_SIZE];
+                        //pthread_mutex_lock(src->lock);
+                        sendEncryptedUserData(data, MAX_INPUT_SIZE, src);
+                        //pthread_mutex_unlock(src->lock);
+                    }
+                }
+            }
+        }
+    }  else if(isSelect) {
         while (isRunning) {
             fd_set rdset;
             fd_set wrset;
@@ -699,9 +708,9 @@ void startServer(void) {
                     if (likely(eventList[i].events & EPOLLIN)) {
                         if (eventList[i].data.ptr) {
                             //Regular read connection
-                                //pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
-                                handleIncomingPacket(eventList[i].data.ptr);
-                                //pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
+                            //pthread_mutex_lock(((struct client *) eventList[i].data.ptr)->lock);
+                            handleIncomingPacket(eventList[i].data.ptr);
+                            //pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                         } else {
                             //Null data pointer means listen socket has incoming connection
                             handleIncomingConnection(efd);
@@ -1068,7 +1077,12 @@ void handleSocketError(struct client *entry) {
  */
 int16_t readPacketLength(const int sock) {
     int16_t sizeToRead = 0;
-    int n = spinRead(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
+    int n;
+    if (isNormal) {
+        n = readNBytes(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
+    } else {
+        n = spinRead(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
+    }
     if (n == -1) {
         return -1;
     }
