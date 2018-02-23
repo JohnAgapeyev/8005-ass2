@@ -532,13 +532,14 @@ void startServer(void) {
     } else if (isEpoll) {
         close(epollfd);
     }
-
+    FILE* fp;
+    fp = fopen("stats","w");
     for (size_t i = 0; i < clientMax; ++i) {
         if (clientList[i]) {
-            printf("Socket: %d\n", clientList[i]->socket);
-            printf("Packet count: %llu\n", clientList[i]->packetCount);
-            printf("Bytes sent: %llu\n", clientList[i]->bytesSent);
-            printf("Average response in micro: %llu\n", clientList[i]->averageUs);
+            fprintf(fp,"Socket: %d\n", clientList[i]->socket);
+            fprintf(fp,"Packet count: %llu\n", clientList[i]->packetCount);
+            fprintf(fp,"Bytes sent: %llu\n", clientList[i]->bytesSent);
+            fprintf(fp,"Average response in micro: %llu\n", clientList[i]->averageUs);
         }
     }
 
@@ -574,12 +575,12 @@ void startServer(void) {
 
      if (isNormal) {
          while(isRunning){
-             pthread_mutex_lock(&clientLock);
-             size_t tmpCount = clientMax;
-             pthread_mutex_unlock(&clientLock);
              if(isServer){
                  handleIncomingConnection(listenSock);
              }
+             pthread_mutex_lock(&clientLock);
+             size_t tmpCount = clientMax;
+             pthread_mutex_unlock(&clientLock);
                  for(size_t l = 0; l < tmpCount; ++l){
                      pthread_mutex_lock(&clientLock);
                      struct client *src = clientList[l];
@@ -1011,17 +1012,22 @@ void handleSocketError(struct client *entry) {
  * This function reads only those two bytes, and returns them.
  * This allows a staggered read to accurately receive dynamic length packets.
  */
-int16_t readPacketLength(const int sock) {
-    int16_t sizeToRead = 0;
-    int n = spinRead(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
-    if (n == -1) {
-        return -1;
-    }
-    if (n == 0) {
-        return 0;
-    }
-    return sizeToRead;
-}
+ int16_t readPacketLength(const int sock) {
+     int16_t sizeToRead = 0;
+     int n;
+     if (isNormal) {
+         n = readNBytes(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
+     } else {
+         n = spinRead(sock, (unsigned char *) &sizeToRead, sizeof(int16_t));
+     }
+     if (n == -1) {
+         return -1;
+     }
+     if (n == 0) {
+         return 0;
+     }
+     return sizeToRead;
+ }
 
 /*
  * FUNCTION: handleIncomingPacket
