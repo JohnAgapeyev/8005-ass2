@@ -579,7 +579,7 @@ void startServer(void) {
                  handleIncomingConnection(listenSock);
              }
              size_t tmpCount;
-             if(pthread_mutex_trylock(&clientLock)){
+             if(!pthread_mutex_trylock(&clientLock)){
                 tmpCount = clientMax;
                 pthread_mutex_unlock(&clientLock);
              } else {
@@ -591,7 +591,7 @@ void startServer(void) {
              //pthread_mutex_unlock(&clientLock);
                  for(size_t l = 0; l < tmpCount; ++l){
                      struct client *src;
-                     if(pthread_mutex_trylock(&clientLock)){
+                     if(!pthread_mutex_trylock(&clientLock)){
                         src = clientList[l];
                         pthread_mutex_unlock(&clientLock);
                      } else {
@@ -609,9 +609,9 @@ void startServer(void) {
                                  }
                          } else {
                              unsigned char data[MAX_INPUT_SIZE];
-                             pthread_mutex_lock(src->lock);
+                             //pthread_mutex_lock(src->lock);
                                sendEncryptedUserData(data, MAX_INPUT_SIZE, src);
-                             pthread_mutex_unlock(src->lock);
+                             //pthread_mutex_unlock(src->lock);
                          }
                      }
                  }

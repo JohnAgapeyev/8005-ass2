@@ -1,144 +1,800 @@
 Socket: 4
-Packet count: 162
-Bytes sent: 663552
-Average response in micro: 62669
+Packet count: 28
+Bytes sent: 114688
+Average response in micro: 357720
 Socket: 5
-Packet count: 193
-Bytes sent: 790528
-Average response in micro: 52309
-Socket: 7
-Packet count: 241
-Bytes sent: 987136
-Average response in micro: 42190
-Socket: 10
-Packet count: 243
-Bytes sent: 995328
-Average response in micro: 41862
+Packet count: 15
+Bytes sent: 61440
+Average response in micro: 689555
 Socket: 6
-Packet count: 109
-Bytes sent: 446464
-Average response in micro: 92967
+Packet count: 30
+Bytes sent: 122880
+Average response in micro: 341288
+Socket: 7
+Packet count: 19
+Bytes sent: 77824
+Average response in micro: 535841
 Socket: 8
-Packet count: 204
-Bytes sent: 835584
-Average response in micro: 49721
-Socket: 12
-Packet count: 242
-Bytes sent: 991232
-Average response in micro: 41926
-Socket: 13
-Packet count: 181
-Bytes sent: 741376
-Average response in micro: 56014
-Socket: 9
-Packet count: 215
-Bytes sent: 880640
-Average response in micro: 47138
+Packet count: 23
+Bytes sent: 94208
+Average response in micro: 448116
 Socket: 11
-Packet count: 216
-Bytes sent: 884736
-Average response in micro: 46899
-Socket: 16
-Packet count: 215
-Bytes sent: 880640
-Average response in micro: 47123
-Socket: 17
-Packet count: 247
-Bytes sent: 1011712
-Average response in micro: 41046
+Packet count: 30
+Bytes sent: 122880
+Average response in micro: 339511
+Socket: 12
+Packet count: 12
+Bytes sent: 49152
+Average response in micro: 866078
 Socket: 14
-Packet count: 193
-Bytes sent: 790528
-Average response in micro: 52552
+Packet count: 9
+Bytes sent: 36864
+Average response in micro: 1200297
+Socket: 9
+Packet count: 17
+Bytes sent: 69632
+Average response in micro: 604153
+Socket: 13
+Packet count: 33
+Bytes sent: 135168
+Average response in micro: 305791
+Socket: 16
+Packet count: 29
+Bytes sent: 118784
+Average response in micro: 346114
 Socket: 18
-Packet count: 206
-Bytes sent: 843776
-Average response in micro: 48927
-Socket: 20
-Packet count: 218
-Bytes sent: 892928
-Average response in micro: 46488
-Socket: 22
-Packet count: 206
-Bytes sent: 843776
-Average response in micro: 49179
-Socket: 23
-Packet count: 188
-Bytes sent: 770048
-Average response in micro: 53735
-Socket: 21
-Packet count: 251
-Bytes sent: 1028096
-Average response in micro: 40363
-Socket: 19
-Packet count: 210
-Bytes sent: 860160
-Average response in micro: 48240
-Socket: 25
-Packet count: 233
-Bytes sent: 954368
-Average response in micro: 43475
-Socket: 26
-Packet count: 218
-Bytes sent: 892928
-Average response in micro: 46457
-Socket: 27
-Packet count: 193
-Bytes sent: 790528
-Average response in micro: 52309
+Packet count: 34
+Bytes sent: 139264
+Average response in micro: 292556
+Socket: 10
+Packet count: 32
+Bytes sent: 131072
+Average response in micro: 312618
 Socket: 15
-Packet count: 167
-Bytes sent: 684032
-Average response in micro: 60103
+Packet count: 30
+Bytes sent: 122880
+Average response in micro: 334177
+Socket: 17
+Packet count: 26
+Bytes sent: 106496
+Average response in micro: 356174
+Socket: 19
+Packet count: 31
+Bytes sent: 126976
+Average response in micro: 318070
+Socket: 20
+Packet count: 24
+Bytes sent: 98304
+Average response in micro: 406263
+Socket: 21
+Packet count: 30
+Bytes sent: 122880
+Average response in micro: 293815
+Socket: 23
+Packet count: 37
+Bytes sent: 151552
+Average response in micro: 268324
+Socket: 25
+Packet count: 31
+Bytes sent: 126976
+Average response in micro: 321986
+Socket: 26
+Packet count: 38
+Bytes sent: 155648
+Average response in micro: 257135
+Socket: 27
+Packet count: 32
+Bytes sent: 131072
+Average response in micro: 277304
 Socket: 24
-Packet count: 215
-Bytes sent: 880640
-Average response in micro: 47049
+Packet count: 22
+Bytes sent: 90112
+Average response in micro: 456917
 Socket: 28
-Packet count: 216
-Bytes sent: 884736
-Average response in micro: 46815
-Socket: 29
-Packet count: 210
-Bytes sent: 860160
-Average response in micro: 48099
+Packet count: 20
+Bytes sent: 81920
+Average response in micro: 486163
+Socket: 22
+Packet count: 23
+Bytes sent: 94208
+Average response in micro: 435957
 Socket: 30
-Packet count: 194
-Bytes sent: 794624
-Average response in micro: 51970
-Socket: 31
-Packet count: 223
-Bytes sent: 913408
-Average response in micro: 45344
+Packet count: 26
+Bytes sent: 106496
+Average response in micro: 383635
 Socket: 32
-Packet count: 228
-Bytes sent: 933888
-Average response in micro: 44359
-Socket: 33
-Packet count: 220
-Bytes sent: 901120
-Average response in micro: 45938
-Socket: 34
-Packet count: 228
-Bytes sent: 933888
-Average response in micro: 44332
-Socket: 36
-Packet count: 144
-Bytes sent: 589824
-Average response in micro: 69828
+Packet count: 31
+Bytes sent: 126976
+Average response in micro: 317480
+Socket: 29
+Packet count: 21
+Bytes sent: 86016
+Average response in micro: 467992
 Socket: 35
-Packet count: 249
-Bytes sent: 1019904
-Average response in micro: 40474
-Socket: 37
-Packet count: 201
-Bytes sent: 823296
-Average response in micro: 50074
-Socket: 38
-Packet count: 215
-Bytes sent: 880640
-Average response in micro: 46850
+Packet count: 23
+Bytes sent: 94208
+Average response in micro: 438872
+Socket: 33
+Packet count: 26
+Bytes sent: 106496
+Average response in micro: 382798
+Socket: 31
+Packet count: 12
+Bytes sent: 49152
+Average response in micro: 867423
+Socket: 34
+Packet count: 35
+Bytes sent: 143360
+Average response in micro: 276343
+Socket: 36
+Packet count: 19
+Bytes sent: 77824
+Average response in micro: 517250
 Socket: 39
-Packet count: 242
-Bytes sent: 991232
-Average response in micro: 41644
+Packet count: 19
+Bytes sent: 77824
+Average response in micro: 522010
+Socket: 37
+Packet count: 14
+Bytes sent: 57344
+Average response in micro: 557852
+Socket: 38
+Packet count: 32
+Bytes sent: 131072
+Average response in micro: 300289
+Socket: 40
+Packet count: 26
+Bytes sent: 106496
+Average response in micro: 375836
+Socket: 44
+Packet count: 19
+Bytes sent: 77824
+Average response in micro: 517242
+Socket: 41
+Packet count: 9
+Bytes sent: 36864
+Average response in micro: 1164102
+Socket: 42
+Packet count: 22
+Bytes sent: 90112
+Average response in micro: 450898
+Socket: 43
+Packet count: 21
+Bytes sent: 86016
+Average response in micro: 466172
+Socket: 46
+Packet count: 14
+Bytes sent: 57344
+Average response in micro: 717214
+Socket: 49
+Packet count: 22
+Bytes sent: 90112
+Average response in micro: 450879
+Socket: 50
+Packet count: 25
+Bytes sent: 102400
+Average response in micro: 384925
+Socket: 47
+Packet count: 14
+Bytes sent: 57344
+Average response in micro: 721224
+Socket: 45
+Packet count: 30
+Bytes sent: 122880
+Average response in micro: 323745
+Socket: 48
+Packet count: 18
+Bytes sent: 73728
+Average response in micro: 543424
+Socket: 51
+Packet count: 22
+Bytes sent: 90112
+Average response in micro: 455882
+Socket: 52
+Packet count: 16
+Bytes sent: 65536
+Average response in micro: 631266
+Socket: 54
+Packet count: 22
+Bytes sent: 90112
+Average response in micro: 443965
+Socket: 57
+Packet count: 11
+Bytes sent: 45056
+Average response in micro: 946853
+Socket: 55
+Packet count: 36
+Bytes sent: 147456
+Average response in micro: 266349
+Socket: 53
+Packet count: 21
+Bytes sent: 86016
+Average response in micro: 473438
+Socket: 56
+Packet count: 10
+Bytes sent: 40960
+Average response in micro: 1052127
+Socket: 58
+Packet count: 18
+Bytes sent: 73728
+Average response in micro: 541304
+Socket: 59
+Packet count: 22
+Bytes sent: 90112
+Average response in micro: 457014
+Socket: 62
+Packet count: 23
+Bytes sent: 94208
+Average response in micro: 424283
+Socket: 61
+Packet count: 16
+Bytes sent: 65536
+Average response in micro: 636885
+Socket: 63
+Packet count: 19
+Bytes sent: 77824
+Average response in micro: 530723
+Socket: 64
+Packet count: 8
+Bytes sent: 32768
+Average response in micro: 1352729
+Socket: 66
+Packet count: 10
+Bytes sent: 40960
+Average response in micro: 942826
+Socket: 65
+Packet count: 29
+Bytes sent: 118784
+Average response in micro: 336266
+Socket: 67
+Packet count: 22
+Bytes sent: 90112
+Average response in micro: 450883
+Socket: 60
+Packet count: 11
+Bytes sent: 45056
+Average response in micro: 932350
+Socket: 68
+Packet count: 18
+Bytes sent: 73728
+Average response in micro: 498197
+Socket: 69
+Packet count: 20
+Bytes sent: 81920
+Average response in micro: 498341
+Socket: 71
+Packet count: 11
+Bytes sent: 45056
+Average response in micro: 931310
+Socket: 70
+Packet count: 14
+Bytes sent: 57344
+Average response in micro: 652284
+Socket: 72
+Packet count: 30
+Bytes sent: 122880
+Average response in micro: 318269
+Socket: 74
+Packet count: 21
+Bytes sent: 86016
+Average response in micro: 465852
+Socket: 76
+Packet count: 22
+Bytes sent: 90112
+Average response in micro: 401999
+Socket: 75
+Packet count: 24
+Bytes sent: 98304
+Average response in micro: 401771
+Socket: 73
+Packet count: 16
+Bytes sent: 65536
+Average response in micro: 631435
+Socket: 78
+Packet count: 7
+Bytes sent: 28672
+Average response in micro: 1564588
+Socket: 79
+Packet count: 23
+Bytes sent: 94208
+Average response in micro: 430501
+Socket: 82
+Packet count: 21
+Bytes sent: 86016
+Average response in micro: 478997
+Socket: 77
+Packet count: 7
+Bytes sent: 28672
+Average response in micro: 1387291
+Socket: 83
+Packet count: 20
+Bytes sent: 81920
+Average response in micro: 480203
+Socket: 80
+Packet count: 23
+Bytes sent: 94208
+Average response in micro: 416128
+Socket: 84
+Packet count: 20
+Bytes sent: 81920
+Average response in micro: 486208
+Socket: 86
+Packet count: 25
+Bytes sent: 102400
+Average response in micro: 381413
+Socket: 85
+Packet count: 17
+Bytes sent: 69632
+Average response in micro: 563561
+Socket: 87
+Packet count: 19
+Bytes sent: 77824
+Average response in micro: 513412
+Socket: 89
+Packet count: 23
+Bytes sent: 94208
+Average response in micro: 426669
+Socket: 88
+Packet count: 18
+Bytes sent: 73728
+Average response in micro: 508701
+Socket: 81
+Packet count: 28
+Bytes sent: 114688
+Average response in micro: 320354
+Socket: 90
+Packet count: 27
+Bytes sent: 110592
+Average response in micro: 368461
+Socket: 94
+Packet count: 17
+Bytes sent: 69632
+Average response in micro: 577012
+Socket: 91
+Packet count: 18
+Bytes sent: 73728
+Average response in micro: 557098
+Socket: 93
+Packet count: 11
+Bytes sent: 45056
+Average response in micro: 950822
+Socket: 92
+Packet count: 13
+Bytes sent: 53248
+Average response in micro: 760095
+Socket: 95
+Packet count: 24
+Bytes sent: 98304
+Average response in micro: 405106
+Socket: 99
+Packet count: 26
+Bytes sent: 106496
+Average response in micro: 380395
+Socket: 96
+Packet count: 12
+Bytes sent: 49152
+Average response in micro: 839271
+Socket: 100
+Packet count: 11
+Bytes sent: 45056
+Average response in micro: 832933
+Socket: 97
+Packet count: 13
+Bytes sent: 53248
+Average response in micro: 788485
+Socket: 98
+Packet count: 12
+Bytes sent: 49152
+Average response in micro: 870084
+Socket: 101
+Packet count: 23
+Bytes sent: 94208
+Average response in micro: 430650
+Socket: 102
+Packet count: 25
+Bytes sent: 102400
+Average response in micro: 384342
+Socket: 104
+Packet count: 24
+Bytes sent: 98304
+Average response in micro: 401343
+Socket: 106
+Packet count: 14
+Bytes sent: 57344
+Average response in micro: 727791
+Socket: 108
+Packet count: 15
+Bytes sent: 61440
+Average response in micro: 650782
+Socket: 103
+Packet count: 14
+Bytes sent: 57344
+Average response in micro: 717183
+Socket: 107
+Packet count: 19
+Bytes sent: 77824
+Average response in micro: 507360
+Socket: 110
+Packet count: 24
+Bytes sent: 98304
+Average response in micro: 401081
+Socket: 112
+Packet count: 17
+Bytes sent: 69632
+Average response in micro: 582326
+Socket: 109
+Packet count: 13
+Bytes sent: 53248
+Average response in micro: 776525
+Socket: 114
+Packet count: 20
+Bytes sent: 81920
+Average response in micro: 499927
+Socket: 115
+Packet count: 26
+Bytes sent: 106496
+Average response in micro: 379180
+Socket: 113
+Packet count: 15
+Bytes sent: 61440
+Average response in micro: 669264
+Socket: 105
+Packet count: 13
+Bytes sent: 53248
+Average response in micro: 695342
+Socket: 111
+Packet count: 15
+Bytes sent: 61440
+Average response in micro: 658935
+Socket: 119
+Packet count: 10
+Bytes sent: 40960
+Average response in micro: 1047103
+Socket: 120
+Packet count: 15
+Bytes sent: 61440
+Average response in micro: 664879
+Socket: 117
+Packet count: 3
+Bytes sent: 12288
+Average response in micro: 1750690
+Socket: 116
+Packet count: 6
+Bytes sent: 24576
+Average response in micro: 1895065
+Socket: 118
+Packet count: 18
+Bytes sent: 73728
+Average response in micro: 550561
+Socket: 122
+Packet count: 18
+Bytes sent: 73728
+Average response in micro: 542616
+Socket: 124
+Packet count: 6
+Bytes sent: 24576
+Average response in micro: 1895035
+Socket: 126
+Packet count: 20
+Bytes sent: 81920
+Average response in micro: 490391
+Socket: 127
+Packet count: 15
+Bytes sent: 61440
+Average response in micro: 665572
+Socket: 121
+Packet count: 2
+Bytes sent: 8192
+Average response in micro: 3616762
+Socket: 128
+Packet count: 2
+Bytes sent: 8192
+Average response in micro: 3616785
+Socket: 129
+Packet count: 2
+Bytes sent: 8192
+Average response in micro: 3616572
+Socket: 123
+Packet count: 16
+Bytes sent: 65536
+Average response in micro: 621185
+Socket: 125
+Packet count: 16
+Bytes sent: 65536
+Average response in micro: 623997
+Socket: 131
+Packet count: 19
+Bytes sent: 77824
+Average response in micro: 520758
+Socket: 132
+Packet count: 25
+Bytes sent: 102400
+Average response in micro: 389988
+Socket: 130
+Packet count: 18
+Bytes sent: 73728
+Average response in micro: 550575
+Socket: 134
+Packet count: 14
+Bytes sent: 57344
+Average response in micro: 708850
+Socket: 135
+Packet count: 10
+Bytes sent: 40960
+Average response in micro: 1051704
+Socket: 136
+Packet count: 20
+Bytes sent: 81920
+Average response in micro: 480441
+Socket: 133
+Packet count: 22
+Bytes sent: 90112
+Average response in micro: 401605
+Socket: 138
+Packet count: 9
+Bytes sent: 36864
+Average response in micro: 1171714
+Socket: 140
+Packet count: 33
+Bytes sent: 135168
+Average response in micro: 292470
+Socket: 141
+Packet count: 27
+Bytes sent: 110592
+Average response in micro: 364577
+Socket: 143
+Packet count: 28
+Bytes sent: 114688
+Average response in micro: 307263
+Socket: 139
+Packet count: 17
+Bytes sent: 69632
+Average response in micro: 570107
+Socket: 142
+Packet count: 18
+Bytes sent: 73728
+Average response in micro: 547010
+Socket: 144
+Packet count: 15
+Bytes sent: 61440
+Average response in micro: 657583
+Socket: 137
+Packet count: 33
+Bytes sent: 135168
+Average response in micro: 287926
+Socket: 145
+Packet count: 11
+Bytes sent: 45056
+Average response in micro: 930813
+Socket: 148
+Packet count: 12
+Bytes sent: 49152
+Average response in micro: 846191
+Socket: 149
+Packet count: 27
+Bytes sent: 110592
+Average response in micro: 357975
+Socket: 146
+Packet count: 28
+Bytes sent: 114688
+Average response in micro: 344706
+Socket: 147
+Packet count: 22
+Bytes sent: 90112
+Average response in micro: 451975
+Socket: 150
+Packet count: 19
+Bytes sent: 77824
+Average response in micro: 517069
+Socket: 151
+Packet count: 24
+Bytes sent: 98304
+Average response in micro: 396852
+Socket: 152
+Packet count: 27
+Bytes sent: 110592
+Average response in micro: 351029
+Socket: 154
+Packet count: 29
+Bytes sent: 118784
+Average response in micro: 325778
+Socket: 153
+Packet count: 17
+Bytes sent: 69632
+Average response in micro: 593152
+Socket: 155
+Packet count: 29
+Bytes sent: 118784
+Average response in micro: 329064
+Socket: 156
+Packet count: 26
+Bytes sent: 106496
+Average response in micro: 372257
+Socket: 157
+Packet count: 13
+Bytes sent: 53248
+Average response in micro: 772202
+Socket: 158
+Packet count: 23
+Bytes sent: 94208
+Average response in micro: 423053
+Socket: 159
+Packet count: 20
+Bytes sent: 81920
+Average response in micro: 502783
+Socket: 160
+Packet count: 9
+Bytes sent: 36864
+Average response in micro: 1166940
+Socket: 161
+Packet count: 17
+Bytes sent: 69632
+Average response in micro: 593143
+Socket: 162
+Packet count: 21
+Bytes sent: 86016
+Average response in micro: 431082
+Socket: 163
+Packet count: 12
+Bytes sent: 49152
+Average response in micro: 754215
+Socket: 164
+Packet count: 20
+Bytes sent: 81920
+Average response in micro: 489853
+Socket: 166
+Packet count: 15
+Bytes sent: 61440
+Average response in micro: 651934
+Socket: 167
+Packet count: 13
+Bytes sent: 53248
+Average response in micro: 691362
+Socket: 169
+Packet count: 8
+Bytes sent: 32768
+Average response in micro: 1303832
+Socket: 170
+Packet count: 18
+Bytes sent: 73728
+Average response in micro: 536867
+Socket: 172
+Packet count: 12
+Bytes sent: 49152
+Average response in micro: 767692
+Socket: 171
+Packet count: 15
+Bytes sent: 61440
+Average response in micro: 651910
+Socket: 165
+Packet count: 11
+Bytes sent: 45056
+Average response in micro: 912703
+Socket: 168
+Packet count: 28
+Bytes sent: 114688
+Average response in micro: 350677
+Socket: 176
+Packet count: 17
+Bytes sent: 69632
+Average response in micro: 575882
+Socket: 175
+Packet count: 22
+Bytes sent: 90112
+Average response in micro: 445643
+Socket: 173
+Packet count: 27
+Bytes sent: 110592
+Average response in micro: 351001
+Socket: 174
+Packet count: 18
+Bytes sent: 73728
+Average response in micro: 537570
+Socket: 180
+Packet count: 17
+Bytes sent: 69632
+Average response in micro: 575871
+Socket: 177
+Packet count: 15
+Bytes sent: 61440
+Average response in micro: 592571
+Socket: 178
+Packet count: 20
+Bytes sent: 81920
+Average response in micro: 484943
+Socket: 179
+Packet count: 14
+Bytes sent: 57344
+Average response in micro: 644268
+Socket: 181
+Packet count: 11
+Bytes sent: 45056
+Average response in micro: 912684
+Socket: 182
+Packet count: 21
+Bytes sent: 86016
+Average response in micro: 470454
+Socket: 183
+Packet count: 17
+Bytes sent: 69632
+Average response in micro: 584882
+Socket: 187
+Packet count: 24
+Bytes sent: 98304
+Average response in micro: 400589
+Socket: 185
+Packet count: 17
+Bytes sent: 69632
+Average response in micro: 584845
+Socket: 188
+Packet count: 11
+Bytes sent: 45056
+Average response in micro: 921409
+Socket: 190
+Packet count: 11
+Bytes sent: 45056
+Average response in micro: 935830
+Socket: 189
+Packet count: 19
+Bytes sent: 77824
+Average response in micro: 511871
+Socket: 186
+Packet count: 12
+Bytes sent: 49152
+Average response in micro: 846080
+Socket: 184
+Packet count: 14
+Bytes sent: 57344
+Average response in micro: 718394
+Socket: 194
+Packet count: 20
+Bytes sent: 81920
+Average response in micro: 481354
+Socket: 191
+Packet count: 27
+Bytes sent: 110592
+Average response in micro: 354727
+Socket: 196
+Packet count: 15
+Bytes sent: 61440
+Average response in micro: 674457
+Socket: 197
+Packet count: 24
+Bytes sent: 98304
+Average response in micro: 406875
+Socket: 193
+Packet count: 14
+Bytes sent: 57344
+Average response in micro: 731098
+Socket: 195
+Packet count: 6
+Bytes sent: 24576
+Average response in micro: 1888539
+Socket: 198
+Packet count: 22
+Bytes sent: 90112
+Average response in micro: 451299
+Socket: 199
+Packet count: 17
+Bytes sent: 69632
+Average response in micro: 570410
+Socket: 200
+Packet count: 10
+Bytes sent: 40960
+Average response in micro: 1024808
+Socket: 201
+Packet count: 16
+Bytes sent: 65536
+Average response in micro: 623848
+Socket: 204
+Packet count: 12
+Bytes sent: 49152
+Average response in micro: 761380
+Socket: 192
+Packet count: 13
+Bytes sent: 53248
+Average response in micro: 768563
+Socket: 202
+Packet count: 12
+Bytes sent: 49152
+Average response in micro: 829654
