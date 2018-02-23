@@ -537,11 +537,13 @@ void startServer(void) {
     for (size_t i = 0; i < clientMax; ++i) {
         if (clientList[i]) {
             fprintf(fp,"Socket: %d\n", clientList[i]->socket);
-            fprintf(fp,"Packet count: %llu\n", clientList[i]->packetCount);
-            fprintf(fp,"Bytes sent: %llu\n", clientList[i]->bytesSent);
-            fprintf(fp,"Average response in micro: %llu\n", clientList[i]->averageUs);
+            fprintf(fp,"Packet count: %ld\n", clientList[i]->packetCount);
+            fprintf(fp,"Bytes sent: %ld\n", clientList[i]->bytesSent);
+            fprintf(fp,"Average response in micro: %ld\n", clientList[i]->averageUs);
         }
     }
+
+    fclose(fp);
 
     network_cleanup();
 }
