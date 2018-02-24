@@ -628,7 +628,7 @@ void *eventLoop(void *epollfd) {
                 struct client *src = clientList[l];
                 pthread_mutex_unlock(&clientLock);
 
-                if(src && src->enabled){
+                if(src && src->enabled && src->signingKey && src->sharedKey){
                     if(isServer){
                         if(!pthread_mutex_trylock(src->lock)){
                             handleIncomingPacket(src);
