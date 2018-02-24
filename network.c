@@ -631,6 +631,12 @@ void *eventLoop(void *epollfd) {
                 if (src && src->enabled && src->signingKey && src->sharedKey) {
                     if (isServer) {
                         if (!pthread_mutex_trylock(src->lock)) {
+				int16_t len;
+				int n = recv(src->socket, &len, sizeof(int16_t), MSG_PEEK);
+				if (n == -1) {
+				    pthread_mutex_unlock(src->lock);
+				    continue;
+				}
                             handleIncomingPacket(src);
                             pthread_mutex_unlock(src->lock);
                         } else {
@@ -1088,6 +1094,9 @@ int16_t readPacketLength(const int sock) {
     }
     if (n == 0) {
         return 0;
+    }
+    if (n == 1) {
+	return -1;
     }
     return sizeToRead;
 }
