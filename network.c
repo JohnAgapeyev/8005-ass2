@@ -616,21 +616,21 @@ void *eventLoop(void *epollfd) {
     int pos = *((int *)epollfd);
 
     if (isNormal) {
-        while(isRunning){
-            if(isServer){
+        while (isRunning) {
+            if (isServer ){
                 handleIncomingConnection(listenSock);
             }
             pthread_mutex_lock(&clientLock);
             size_t tmpCount = clientMax;
             pthread_mutex_unlock(&clientLock);
-            for(size_t l = 0; l < tmpCount; ++l){
+            for (size_t l = 0; l < tmpCount; ++l) {
                 pthread_mutex_lock(&clientLock);
                 struct client *src = clientList[l];
                 pthread_mutex_unlock(&clientLock);
 
-                if(src && src->enabled && src->signingKey && src->sharedKey){
-                    if(isServer){
-                        if(!pthread_mutex_trylock(src->lock)){
+                if (src && src->enabled && src->signingKey && src->sharedKey) {
+                    if (isServer) {
+                        if (!pthread_mutex_trylock(src->lock)) {
                             handleIncomingPacket(src);
                             pthread_mutex_unlock(src->lock);
                         } else {
@@ -646,7 +646,7 @@ void *eventLoop(void *epollfd) {
                 }
             }
         }
-    }  else if(isSelect) {
+    } else if (isSelect) {
         while (isRunning) {
             fd_set rdset;
             fd_set wrset;
