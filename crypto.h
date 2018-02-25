@@ -1,9 +1,9 @@
 /*
  * HEADER FILE: crypto.h - The main cryptography code
  *
- * PROGRAM: 7005-asn4
+ * PROGRAM: 8005-ass2
  *
- * DATE: Dec. 2, 2017
+ * DATE: Feb. 25, 2018
  *
  * FUNCTIONS:
  * void initCrypto(void);
@@ -14,12 +14,12 @@
  * unsigned char *generateHMAC_Buffer(const unsigned char *mesg, size_t mlen, size_t *hmaclen, unsigned char *key, size_t keyLen);
  * bool verifyHMAC_PKEY(const unsigned char *mesg, size_t mlen, const unsigned char *hmac, size_t hmaclen, EVP_PKEY *key);
  * bool verifyHMAC_Buffer(const unsigned char *mesg, size_t mlen, const unsigned char *hmac, size_t hmaclen, unsigned char *key, size_t keyLen);
- * size_t encrypt(const unsigned char *plaintext, size_t plaintextlen, const unsigned char *key, const unsigned char *iv, unsigned char *ciphertext);
- * size_t decrypt(const unsigned char *ciphertext, size_t ciphertextlen, const unsigned char *key, const unsigned char *iv, unsigned char *plaintext);
  * unsigned char *getPublicKey(EVP_PKEY *pkey, size_t *keyLen);
  * EVP_PKEY *setPublicKey(const unsigned char *newPublic, size_t len);
  * unsigned char *getSharedSecret(EVP_PKEY *keypair, EVP_PKEY *clientPublicKey);
  * EVP_PKEY *allocateKeyPair(void);
+ * size_t encrypt_aead(const unsigned char *plaintext, size_t plain_len, const unsigned char *aad, const size_t aad_len, const unsigned char *key, const unsigned char *iv, unsigned char *ciphertext, unsigned char *tag);
+ * ssize_t decrypt_aead(const unsigned char *ciphertext, size_t cipher_len, const unsigned char *aad, const size_t aad_len, const unsigned char *key, const unsigned char *iv, const unsigned char *tag, unsigned char *plaintext);
  *
  * DESIGNER: John Agapeyev
  *
@@ -102,13 +102,10 @@ unsigned char *generateHMAC_PKEY(const unsigned char *mesg, size_t mlen, size_t 
 unsigned char *generateHMAC_Buffer(const unsigned char *mesg, size_t mlen, size_t *hmaclen, unsigned char *key, size_t keyLen);
 bool verifyHMAC_PKEY(const unsigned char *mesg, size_t mlen, const unsigned char *hmac, size_t hmaclen, EVP_PKEY *key);
 bool verifyHMAC_Buffer(const unsigned char *mesg, size_t mlen, const unsigned char *hmac, size_t hmaclen, unsigned char *key, size_t keyLen);
-//size_t encrypt(const unsigned char *plaintext, size_t plaintextlen, const unsigned char *key, const unsigned char *iv, unsigned char *ciphertext);
-//size_t decrypt(const unsigned char *ciphertext, size_t ciphertextlen, const unsigned char *key, const unsigned char *iv, unsigned char *plaintext);
 unsigned char *getPublicKey(EVP_PKEY *pkey, size_t *keyLen);
 EVP_PKEY *setPublicKey(const unsigned char *newPublic, size_t len);
 unsigned char *getSharedSecret(EVP_PKEY *keypair, EVP_PKEY *clientPublicKey);
 EVP_PKEY *allocateKeyPair(void);
-
 size_t encrypt_aead(const unsigned char *plaintext, size_t plain_len, const unsigned char *aad, const size_t aad_len, const unsigned char *key,
         const unsigned char *iv, unsigned char *ciphertext, unsigned char *tag);
 ssize_t decrypt_aead(const unsigned char *ciphertext, size_t cipher_len, const unsigned char *aad, const size_t aad_len, const unsigned char *key,

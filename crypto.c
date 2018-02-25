@@ -1,7 +1,7 @@
 /*
  * SOURCE FILE: crypto.c - Implementation of functions declared in crypto.h
  *
- * PROGRAM: 7005-asn4
+ * PROGRAM: 8005-ass2
  *
  * DATE: Dec. 2, 2017
  *
@@ -14,12 +14,12 @@
  * unsigned char *generateHMAC_Buffer(const unsigned char *mesg, size_t mlen, size_t *hmaclen, unsigned char *key, size_t keyLen);
  * bool verifyHMAC_PKEY(const unsigned char *mesg, size_t mlen, const unsigned char *hmac, size_t hmaclen, EVP_PKEY *key);
  * bool verifyHMAC_Buffer(const unsigned char *mesg, size_t mlen, const unsigned char *hmac, size_t hmaclen, unsigned char *key, size_t keyLen);
- * size_t encrypt(const unsigned char *plaintext, size_t plaintextlen, const unsigned char *key, const unsigned char *iv, unsigned char *ciphertext);
- * size_t decrypt(const unsigned char *ciphertext, size_t ciphertextlen, const unsigned char *key, const unsigned char *iv, unsigned char *plaintext);
  * unsigned char *getPublicKey(EVP_PKEY *pkey, size_t *keyLen);
  * EVP_PKEY *setPublicKey(const unsigned char *newPublic, size_t len);
  * unsigned char *getSharedSecret(EVP_PKEY *keypair, EVP_PKEY *clientPublicKey);
  * EVP_PKEY *allocateKeyPair(void);
+ * size_t encrypt_aead(const unsigned char *plaintext, size_t plain_len, const unsigned char *aad, const size_t aad_len, const unsigned char *key, const unsigned char *iv, unsigned char *ciphertext, unsigned char *tag);
+ * ssize_t decrypt_aead(const unsigned char *ciphertext, size_t cipher_len, const unsigned char *aad, const size_t aad_len, const unsigned char *key, const unsigned char *iv, const unsigned char *tag, unsigned char *plaintext);
  *
  * DESIGNER: John Agapeyev
  *
@@ -391,109 +391,6 @@ bool verifyHMAC_Buffer(const unsigned char *mesg, size_t mlen, const unsigned ch
 }
 
 /*
- * FUNCTION: encrypt
- *
- * DATE:
- * Dec. 2, 2017
- *
- * DESIGNER:
- * John Agapeyev
- *
- * PROGRAMMER:
- * John Agapeyev
- *
- * INTERFACE:
- * size_t encrypt(const unsigned char *plaintext, size_t plaintextlen, const unsigned char *key, const unsigned char *iv, unsigned char *ciphertext);
- *
- * PARAMETERS:
- * const unsigned char *plaintext - The plaintext
- * size_t plaintextlen - The length of the plaintext
- * const unsigned char *key - A buffer containing the encryption key
- * const unsigned char *iv - A buffer containing the IV
- * unsigned char *ciphertext - A buffer to write the ciphertext to
- *
- * RETURNS:
- * size_t - The size of the ciphertext
- *
- * NOTES:
- * Encrypts using AES-256-CBC.
- * Ciphertext buffer must be at least plaintextlen + 16 bytes long.
- */
-#if 0
-size_t encrypt(const unsigned char *plaintext, size_t plaintextlen, const unsigned char *key, const unsigned char *iv, unsigned char *ciphertext) {
-    EVP_CIPHER_CTX *ctx;
-    nullCheckCryptoAPICall(ctx = EVP_CIPHER_CTX_new());
-
-    checkCryptoAPICall(EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, iv));
-
-    int len;
-    checkCryptoAPICall(EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintextlen));
-
-    int ciphertextlen = len;
-    checkCryptoAPICall(EVP_EncryptFinal_ex(ctx, ciphertext + len, &len));
-
-    ciphertextlen += len;
-
-    EVP_CIPHER_CTX_free(ctx);
-
-    assert(ciphertextlen >= 0);
-
-    return ciphertextlen;
-}
-#endif
-
-/*
- * FUNCTION: decrypt
- *
- * DATE:
- * Dec. 2, 2017
- *
- * DESIGNER:
- * John Agapeyev
- *
- * PROGRAMMER:
- * John Agapeyev
- *
- * INTERFACE:
- * size_t decrypt(const unsigned char *ciphertext, size_t ciphertextlen, const unsigned char *key, const unsigned char *iv, unsigned char *plaintext);
- *
- * PARAMETERS:
- * const unsigned char *ciphertext - The buffer containing the ciphertext
- * size_t ciphertextlen - The length of the ciphertext
- * const unsigned char *key - The key to decrypt with
- * const unsigned char *iv - The IV used in encrypting the ciphertext
- * unsigned char *plaintext - A buffer to write the plaintext to
- *
- * RETURNS:
- * size_t - The size of the plaintext
- *
- * NOTES:
- * plaintext must be at least ciphertextlen bytes big.
- */
-#if 0
-size_t decrypt(const unsigned char *ciphertext, size_t ciphertextlen, const unsigned char *key, const unsigned char *iv, unsigned char *plaintext) {
-    EVP_CIPHER_CTX *ctx;
-    nullCheckCryptoAPICall(ctx = EVP_CIPHER_CTX_new());
-
-    checkCryptoAPICall(EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, iv));
-
-    int len;
-    checkCryptoAPICall(EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertextlen));
-
-    int plaintextlen = len;
-    checkCryptoAPICall(EVP_DecryptFinal_ex(ctx, plaintext + len, &len));
-
-    plaintextlen += len;
-
-    EVP_CIPHER_CTX_free(ctx);
-
-    assert(plaintextlen >= 0);
-
-    return plaintextlen;
-}
-#endif
-
-/*
  * FUNCTION: getPublicKey
  *
  * DATE:
@@ -696,6 +593,37 @@ EVP_PKEY *allocateKeyPair(void) {
     return out;
 }
 
+/*
+ * FUNCTION: encrypt_aead
+ *
+ * DATE:
+ * Feb. 25, 2018
+ *
+ * DESIGNER:
+ * John Agapeyev
+ *
+ * PROGRAMMER:
+ * John Agapeyev
+ *
+ * INTERFACE:
+ * size_t encrypt_aead(const unsigned char *plaintext, size_t plain_len, const unsigned char *aad, const size_t aad_len, const unsigned char *key, const unsigned char *iv, unsigned char *ciphertext, unsigned char *tag);
+ *
+ * PARAMETERS:
+ * unsigned char *plaintext - The plaintext to encrypt
+ * size_t plain_len - The length of the plaintext message
+ * const unsigned char *aad - The Additional Authentication Data
+ * const size_t aad_len - The length of aad
+ * const unsigned char *key - The key to use
+ * const unsigned char *iv - The IV to use
+ * unsigned char *ciphertext - The output buffer for the ciphertext
+ * unsigned char *tag - The output buffer for the tag
+ *
+ * RETURNS:
+ * size_t  - The size of the resulting ciphertext
+ *
+ * NOTES:
+ * Encrypts using AES-256-GCM with a 128 bit Tag.
+ */
 size_t encrypt_aead(const unsigned char *plaintext, size_t plain_len, const unsigned char *aad, const size_t aad_len, const unsigned char *key,
         const unsigned char *iv, unsigned char *ciphertext, unsigned char *tag) {
 
@@ -727,6 +655,34 @@ size_t encrypt_aead(const unsigned char *plaintext, size_t plain_len, const unsi
     return ciphertextlen;
 }
 
+/*
+ * FUNCTION: decrypt_aead
+ *
+ * DATE:
+ * Feb. 25, 2018
+ *
+ * DESIGNER:
+ * John Agapeyev
+ *
+ * PROGRAMMER:
+ * John Agapeyev
+ *
+ * INTERFACE:
+ * ssize_t decrypt_aead(const unsigned char *ciphertext, size_t cipher_len, const unsigned char *aad, const size_t aad_len, const unsigned char *key, const unsigned char *iv, const unsigned char *tag, unsigned char *plaintext);
+ *
+ * PARAMETERS:
+ * const unsigned char *plaintext - The ciphertext to decrypt
+ * size_t cipher_len - The length of the ciphertext message
+ * const unsigned char *aad - The Additional Authentication Data
+ * const size_t aad_len - The length of aad
+ * const unsigned char *key - The key to use
+ * const unsigned char *iv - The IV to use
+ * const unsigned char *tag - The tag of the message to be verified
+ * unsigned char *plaintext - The output buffer for the plaintext
+ *
+ * RETURNS:
+ * ssize_t  - The size of the resulting plaintext, or -1 on tag verification failure.
+ */
 ssize_t decrypt_aead(const unsigned char *ciphertext, size_t cipher_len, const unsigned char *aad, const size_t aad_len, const unsigned char *key,
         const unsigned char *iv, const unsigned char *tag, unsigned char *plaintext) {
 
