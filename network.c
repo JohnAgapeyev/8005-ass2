@@ -568,7 +568,7 @@ void startServer(void) {
     eventLoop(&(int){core_count});
 
     for (size_t i = 0; i < core_count; ++i) {
-        pthread_kill(threads[i], SIGKILL);
+        pthread_kill(threads[i], SIGINT);
         pthread_join(threads[i], NULL);
     }
 
@@ -631,12 +631,12 @@ void *eventLoop(void *epollfd) {
                 if (src && src->enabled && src->signingKey && src->sharedKey) {
                     if (isServer) {
                         if (!pthread_mutex_trylock(src->lock)) {
-				int16_t len;
+				/*int16_t len;
 				int n = recv(src->socket, &len, sizeof(int16_t), MSG_PEEK);
 				if (n == -1) {
 				    pthread_mutex_unlock(src->lock);
 				    continue;
-				}
+				}*/
                             handleIncomingPacket(src);
                             pthread_mutex_unlock(src->lock);
                         } else {
