@@ -12,6 +12,7 @@
  * int establishConnection(const char *address, const char *port);
  * size_t readNBytes(const int sock, unsigned char *buf, size_t bufsize);
  * void rawSend(const int sock, const unsigned char *buffer, size_t bufSize);
+ * ssize_t spinRead(const int sock, unsigned char *buf, size_t bufsize);
  *
  * DESIGNER: John Agapeyev
  *

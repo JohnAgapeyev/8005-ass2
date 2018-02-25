@@ -1,7 +1,7 @@
 /*
  * SOURCE FILE: main.c - Implementation of functions declared in main.h
  *
- * PROGRAM: 7005-asn4
+ * PROGRAM: 8005-ass2
  *
  * DATE: Dec. 2, 2017
  *
@@ -89,19 +89,19 @@ static struct option long_options[] = {
 
 #define print_help() \
     do { \
-    printf("usage options:\n"\
-            "\t [p]ort <1-65535>        - the port to use, default 1337\n"\
-            "\t [c]lient                - run as client, exclusive with server\n"\
-            "\t [s]erver <0-2>          - run as server, exclusive with client\n"\
-            "\t [m]ethod <0-2>          - Multiplexing method to use\n"\
-            "\t                             - 0 Multithreaded server\n"\
-            "\t                             - 1 Select server\n"\
-            "\t                             - 2 Epoll server\n"\
-            "\t [i]p <url || ip>        - address to connect to\n"\
-            "\t [k]/count <1-ULLONG_MAX>- Number of worker clients\n"\
-            "\t [t]ime <1-60>           - Length of time in seconds for each connection\n"\
-            "\t [h]elp                  - this message\n"\
-            );\
+        printf("usage options:\n"\
+                "\t [p]ort <1-65535>        - the port to use, default 1337\n"\
+                "\t [c]lient                - run as client, exclusive with server\n"\
+                "\t [s]erver <0-2>          - run as server, exclusive with client\n"\
+                "\t [m]ethod <0-2>          - Multiplexing method to use\n"\
+                "\t                             - 0 Multithreaded server\n"\
+                "\t                             - 1 Select server\n"\
+                "\t                             - 2 Epoll server\n"\
+                "\t [i]p <url || ip>        - address to connect to\n"\
+                "\t [k]/count <1-ULLONG_MAX>- Number of worker clients\n"\
+                "\t [t]ime <1-60>           - Length of time in seconds for each connection\n"\
+                "\t [h]elp                  - this message\n"\
+                );\
     } while(0)
 
 /*
@@ -112,9 +112,11 @@ static struct option long_options[] = {
  *
  * DESIGNER:
  * John Agapeyev
+ * Benedict Lo
  *
  * PROGRAMMER:
  * John Agapeyev
+ * Benedict Lo
  *
  * INTERFACE:
  * int main(int argc, char **argv)
@@ -279,7 +281,7 @@ int main(int argc, char **argv) {
     if (isServer) {
         listenSock = createSocket(AF_INET, SOCK_STREAM, 0);
         bindSocket(listenSock, port);
-	printf("SOMAXCONN: %lu\n", SOMAXCONN);
+        printf("SOMAXCONN: %lu\n", SOMAXCONN);
         listen(listenSock, SOMAXCONN);
         startServer();
         close(listenSock);

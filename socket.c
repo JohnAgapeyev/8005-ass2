@@ -1,7 +1,7 @@
 /*
  * SOURCE FILE: socket.c - Implementation of functions declared in socket.h
  *
- * PROGRAM: 7005-asn4
+ * PROGRAM: 8005-ass2
  *
  * DATE: Dec. 2, 2017
  *
@@ -12,6 +12,7 @@
  * int establishConnection(const char *address, const char *port);
  * size_t readNBytes(const int sock, unsigned char *buf, size_t bufsize);
  * void rawSend(const int sock, const unsigned char *buffer, size_t bufSize);
+ * ssize_t spinRead(const int sock, unsigned char *buf, size_t bufsize);
  *
  * DESIGNER: John Agapeyev
  *
@@ -329,8 +330,33 @@ start:
     }
 }
 
+/*
+ * FUNCTION: rawSend
+ *
+ * DATE:
+ * Feb. 25, 2018
+ *
+ * DESIGNER:
+ * John Agapeyev
+ *
+ * PROGRAMMER:
+ * John Agapeyev
+ *
+ * INTERFACE:
+ * void setSocketBuffers(const int sock);
+ *
+ * PARAMETERS:
+ * const int sock - The socket to modify
+ *
+ * RETURNS:
+ * void
+ *
+ * NOTES:
+ * Sets the send and receive buffers on the socket to 40 MiB.
+ * This is done using SO_SNDBUFFORCE and SO_RCVBUFFORCE, which require root privileges.
+ */
 void setSocketBuffers(const int sock) {
-    //4 MiB
+    //40 MiB
     unsigned long long buffer_size = 1024 * 1024 * 40;
     if (setsockopt(sock, SOL_SOCKET, SO_SNDBUFFORCE, &buffer_size, sizeof(unsigned long long)) == -1) {
         fatal_error("setsockopt SND_BUFFER");
@@ -340,8 +366,33 @@ void setSocketBuffers(const int sock) {
     }
 }
 
-/**
- * Reads bufsize bytes, and spins until it is received
+/*
+ * FUNCTION: spinRead
+ *
+ * DATE:
+ * Feb. 25, 2018
+ *
+ * DESIGNER:
+ * John Agapeyev
+ *
+ * PROGRAMMER:
+ * John Agapeyev
+ *
+ * INTERFACE:
+ * ssize_t spinRead(const int sock, unsigned char *buf, size_t bufsize);
+ *
+ * PARAMETERS:
+ * const int sock - The socket to read data from
+ * unsigned char *buf - The buffer to store read data
+ * size_t bufsize - The size of the buffer to be filled
+ *
+ * RETURNS:
+ * ssize_t - The amount read, or 0 on disconnect, -1 on error
+ *
+ * NOTES:
+ * Will spin reading until bufsize bytes are read or an error occurs.
+ * This is used to guarantee reads over tcp, regardless of congestion.
+ * There is no handling in place for partial reads, so spinRead replaces that handlingvoid.
  */
 ssize_t spinRead(const int sock, unsigned char *buf, size_t bufsize) {
     const size_t origBufSize = bufsize;
@@ -360,7 +411,7 @@ keepReading:
         if (errno == EAGAIN) {
             goto keepReading;
         } else {
-		perror("SpinRead");
+            perror("SpinRead");
             //Recv returned 0 without EAGAIN, client has left us
             return 0;
         }

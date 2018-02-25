@@ -15,7 +15,6 @@
  * PROGRAMMER: Benedict Lo
  *             John Agapeyev
  */
-
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -25,6 +24,7 @@
 #include "main.h"
 #include "macro.h"
 #include "socket.h"
+
 /*
  * FUNCTION: createSelectFd
  *

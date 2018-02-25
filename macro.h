@@ -1,7 +1,7 @@
 /*
  * HEADER FILE: macro.h - Useful macros
  *
- * PROGRAM: 7005-asn4
+ * PROGRAM: 8005-ass2
  *
  * DATE: Dec. 2, 2017
  *
