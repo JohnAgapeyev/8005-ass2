@@ -19,7 +19,7 @@
  * void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *dest);
  * void decryptReceivedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *src);
  * void sendReliablePacket(const unsigned char *mesg, const size_t mesgLen, struct client *dest);
- * void handleIncomingConnection(const int efd);
+ * void handleIncomingConnection(void);
  * void handleSocketError(struct client *entry);
  * void handleIncomingPacket(struct client *src);
  * int16_t readPacketLength(const int sock);
@@ -430,7 +430,6 @@ bool receiveAndVerifyKey(const int * const sock, unsigned char *buffer, const si
 void *performClientActions(void *args) {
     const char *ip = ((struct client_args *) args)->ip;
     const char *portString = ((struct client_args *) args)->portString;
-    int connection_length = ((struct client_args *) args)->connection_length;
 
     unsigned long long worker_count = ((struct client_args *) args)->worker_count;
     for (unsigned long long i = 0; i < worker_count; ++i) {
@@ -460,12 +459,9 @@ void *performClientActions(void *args) {
             createSelectFd(&rdsetbackup, serverSock, &maxfd);
             createSelectFd(&wrsetbackup, serverSock, &maxfd);
         } else if (isEpoll) {
-            int epollfd = ((struct client_args *) args)->epollfd;
             struct epoll_event ev;
             ev.events = EPOLLIN | EPOLLET | EPOLLEXCLUSIVE | EPOLLOUT;
             ev.data.ptr = serverEntry;
-
-            //addEpollSocket(epollfd, serverSock, &ev);
 
             const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
 
@@ -679,7 +675,7 @@ void *eventLoop(void *epollfd) {
     if (isNormal) {
         while (isRunning) {
             if (isServer ){
-                handleIncomingConnection(listenSock);
+                handleIncomingConnection();
             }
             pthread_mutex_lock(&clientLock);
             size_t tmpCount = clientMax;
@@ -724,7 +720,7 @@ void *eventLoop(void *epollfd) {
             pthread_mutex_unlock(&selectLock);
             waitForSelectEvent(&rdset, &wrset, myMax);
             if (FD_ISSET(listenSock, &rdset)) {
-                handleIncomingConnection(listenSock);
+                handleIncomingConnection();
             }
             pthread_mutex_lock(&clientLock);
             size_t tempCount = clientMax;
@@ -759,7 +755,7 @@ void *eventLoop(void *epollfd) {
 
         int efd = epolls[pos];
 
-        if (pos < core_count) {
+        if (pos < (int) core_count) {
             pthread_cond_wait(cvs + pos, cvmuts + pos);
         }
 
@@ -780,7 +776,7 @@ void *eventLoop(void *epollfd) {
                             //pthread_mutex_unlock(((struct client *) eventList[i].data.ptr)->lock);
                         } else {
                             //Null data pointer means listen socket has incoming connection
-                            handleIncomingConnection(efd);
+                            handleIncomingConnection();
                         }
                     }
                     if (likely(eventList[i].events & EPOLLOUT)) {
@@ -1024,10 +1020,7 @@ void decryptReceivedUserData(const unsigned char *mesg, const size_t mesgLen, st
  * John Agapeyev, Benedict Lo
  *
  * INTERFACE:
- * void handleIncomingConnection(const int efd);
- *
- * PARAMETERS:
- * const int efd - The epoll descriptor that had the event
+ * void handleIncomingConnection(void);
  *
  * RETURNS:
  * void
@@ -1035,7 +1028,7 @@ void decryptReceivedUserData(const unsigned char *mesg, const size_t mesgLen, st
  * NOTES:
  * Adds an incoming connection to the client list, and initiates the handshake.
  */
-void handleIncomingConnection(const int efd) {
+void handleIncomingConnection(void) {
     for(;;) {
         int sock = accept(listenSock, NULL, NULL);
         if (sock == -1) {

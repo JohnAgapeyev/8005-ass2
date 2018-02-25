@@ -154,7 +154,6 @@ int main(int argc, char **argv) {
     unsigned long connection_length = 0;
     long type = -1;
 
-    int val;
     int c;
     for (;;) {
         int option_index = 0;
@@ -281,7 +280,7 @@ int main(int argc, char **argv) {
     if (isServer) {
         listenSock = createSocket(AF_INET, SOCK_STREAM, 0);
         bindSocket(listenSock, port);
-        printf("SOMAXCONN: %lu\n", SOMAXCONN);
+        printf("SOMAXCONN: %d\n", SOMAXCONN);
         listen(listenSock, SOMAXCONN);
         startServer();
         close(listenSock);

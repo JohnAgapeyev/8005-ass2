@@ -19,7 +19,7 @@
  * void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *dest);
  * void decryptReceivedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *src);
  * void sendReliablePacket(const unsigned char *mesg, const size_t mesgLen, struct client *dest);
- * void handleIncomingConnection(const int efd);
+ * void handleIncomingConnection(void);
  * void handleSocketError(struct client *entry);
  * void handleIncomingPacket(struct client *src);
  * int16_t readPacketLength(const int sock);
@@ -131,7 +131,7 @@ void *eventLoop(void *epollfd);
 void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *dest);
 void decryptReceivedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *src);
 void sendReliablePacket(const unsigned char *mesg, const size_t mesgLen, struct client *dest);
-void handleIncomingConnection(const int efd);
+void handleIncomingConnection(void);
 void handleSocketError(struct client *entry);
 void handleIncomingPacket(struct client *src);
 int16_t readPacketLength(const int sock);
