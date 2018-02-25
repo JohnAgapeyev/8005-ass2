@@ -1,4 +1,38 @@
 /*
+ * SOURCE FILE: network.c - Implementation of functions in network.h
+ *
+ * PROGRAM: 8005-ass2
+ *
+ * DATE: Dec. 2, 2017
+ *
+ * FUNCTIONS:
+ * void network_init(void);
+ * void network_cleanup(void);
+ * void process_packet(const unsigned char * const buffer, const size_t bufsize, struct client *src);
+ * unsigned char *exchangeKeys(struct client *clientEntry);
+ * bool receiveAndVerifyKey(const int * const sock, unsigned char *buffer, const size_t bufSize, const size_t keyLen, const size_t hmacLen);
+ * void startClient(const char *ip, const char *portString, const unsigned long long worker_count, const unsigned long connection_length);
+ * void startServer(void);
+ * size_t addClient(int sock);
+ * void initClientStruct(struct client *newClient, int sock);
+ * void *eventLoop(void *epollfd);
+ * void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *dest);
+ * void decryptReceivedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *src);
+ * void sendReliablePacket(const unsigned char *mesg, const size_t mesgLen, struct client *dest);
+ * void handleIncomingConnection(const int efd);
+ * void handleSocketError(struct client *entry);
+ * void handleIncomingPacket(struct client *src);
+ * int16_t readPacketLength(const int sock);
+ * void sendSigningKey(const int sock, const unsigned char *key, const size_t keyLen);
+ * void sendEphemeralKey(const int sock, const unsigned char *key, const size_t keyLen, const unsigned char *hmac, const size_t hmacLen);
+ * void readSigningKey(const int sock, struct client *clientEntry, const size_t keyLen);
+ * void *performClientActions(void *args);
+ *
+ * DESIGNER: John Agapeyev
+ *
+ * PROGRAMMER: John Agapeyev, Benedict Lo
+ */
+/*
  *Copyright (C) 2017 John Agapeyev
  *
  *This program is free software: you can redistribute it and/or modify
@@ -181,7 +215,7 @@ void network_cleanup(void) {
  * FUNCTION: process_packet
  *
  * DATE:
- * Dec. 2, 2017
+ * Feb. 25, 2018
  *
  * DESIGNER:
  * John Agapeyev
@@ -199,6 +233,9 @@ void network_cleanup(void) {
  *
  * RETURNS:
  * void
+ *
+ * NOTES:
+ * Handles packet echo and getting average packet response time.
  */
 void process_packet(const unsigned char * const buffer, const size_t bufsize, struct client *src) {
     debug_print("Received packet of size %zu\n", bufsize);
@@ -366,6 +403,30 @@ bool receiveAndVerifyKey(const int * const sock, unsigned char *buffer, const si
     return rtn;
 }
 
+/*
+ * FUNCTION: performClientActions
+ *
+ * DATE:
+ * Feb. 25, 2018
+ *
+ * DESIGNER:
+ * John Agapeyev
+ *
+ * PROGRAMMER:
+ * John Agapeyev
+ *
+ * INTERFACE:
+ * void *performClientActions(void *args);
+ *
+ * PARAMETERS:
+ * void *args - Thread args, see network.h for struct client_args definition.
+ *
+ * RETURNS:
+ * void * - Required by interface, unused
+ *
+ * NOTES:
+ * Repeatedly connects and initializes clients for the sake of testing large numbers of connections.
+ */
 void *performClientActions(void *args) {
     const char *ip = ((struct client_args *) args)->ip;
     const char *portString = ((struct client_args *) args)->portString;
@@ -431,12 +492,13 @@ void *performClientActions(void *args) {
  * John Agapeyev
  *
  * INTERFACE:
- * void startClient(const char *ip, const char *portString, int inputFD);
+ * void startClient(const char *ip, const char *portString, const unsigned long long worker_count, const unsigned long connection_length);
  *
  * PARAMETERS:
  * const char *ip - A string containing the ip address to connect to
  * const char *portString - A string containing the port number to connect to
- * int inputFD - A file descriptor to read from to get data to send
+ * const unsigned long long worker_count - The total number of workers to use
+ * const unsigned long connection_length - The number of seconds to keep the connection active
  *
  * RETURNS:
  * void
@@ -516,19 +578,17 @@ void startClient(const char *ip, const char *portString, const unsigned long lon
  * John Agapeyev
  *
  * PROGRAMMER:
- * John Agapeyev
+ * John Agapeyev, Benedict Lo
  *
  * INTERFACE:
- * void startServer(const int inputFD)
- *
- * PARAMETERS:
- * const int inputFD - The file descriptor to read from in order to get packet data to send
+ * void startServer(void)
  *
  * RETURNS:
  * void
  *
  * NOTES:
  * Performs similar functions to startClient, except for the inital connection.
+ * Writes stats to file for further inspection and analysis.
  */
 void startServer(void) {
     const size_t core_count = sysconf(_SC_NPROCESSORS_ONLN);
@@ -595,22 +655,23 @@ void startServer(void) {
  * Dec. 2, 2017
  *
  * DESIGNER:
- * John Agapeyev
+ * John Agapeyev, Benedict Lo
  *
  * PROGRAMMER:
- * John Agapeyev
+ * John Agapeyev, Benedict Lo
  *
  * INTERFACE:
  * void *eventLoop(void *epollfd)
  *
  * PARAMETERS:
- * void *epollfd - The address of an epoll descriptor
+ * void *epollfd - The position in the epoll array
  *
  * RETURNS:
  * void * - Required by pthread interface, ignored.
  *
  * NOTES:
  * Both client and server read threads run this function.
+ * Uses traditional multithreading, select, and epoll, depending on command args
  */
 void *eventLoop(void *epollfd) {
     int pos = *((int *)epollfd);
@@ -830,7 +891,7 @@ void initClientStruct(struct client *newClient, int sock) {
  * FUNCTION: sendEncryptedUserData
  *
  * DATE:
- * Dec. 2, 2017
+ * Feb. 25, 2018
  *
  * DESIGNER:
  * John Agapeyev
@@ -839,13 +900,12 @@ void initClientStruct(struct client *newClient, int sock) {
  * John Agapeyev
  *
  * INTERFACE:
- * void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *dest, const bool isAck);
+ * void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *dest);
  *
  * PARAMETERS:
  * const unsigned char *mesg - The message to send
  * const size_t mesgLen - The length of the given message
  * struct client *dest - A client struct containing the destination of the packet
- * const bool isAck - Whether the packet is an ack packet or not
  *
  * RETURNS:
  * void
@@ -853,9 +913,7 @@ void initClientStruct(struct client *newClient, int sock) {
  * NOTES:
  * This function transforms the plaintext mesg into its ciphertext, and handles appending control values.
  * Packet structure is as follows:
- * Packet Length : plaintext : IV : TAG
- * All values excluding Packet Length, IV, and HMAC are encrypted into a single ciphertext.
- * HMAC is calculated over the ciphertext.
+ * Packet Length : ciphertext : IV : TAG
  */
 void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *dest) {
     /*
@@ -930,8 +988,8 @@ void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, stru
  * void
  *
  * NOTES:
- * This function only validates the HMAC, and decrypts the ciphertext, before passing it off.
- * No response is given for an invalid HMAC.
+ * This function only validates the TAG, and decrypts the ciphertext, before passing it off.
+ * No response is given for an invalid TAG.
  */
 void decryptReceivedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *src) {
     assert(mesgLen > IV_SIZE + TAG_SIZE);
@@ -963,7 +1021,7 @@ void decryptReceivedUserData(const unsigned char *mesg, const size_t mesgLen, st
  * John Agapeyev
  *
  * PROGRAMMER:
- * John Agapeyev
+ * John Agapeyev, Benedict Lo
  *
  * INTERFACE:
  * void handleIncomingConnection(const int efd);
@@ -1034,10 +1092,10 @@ void handleIncomingConnection(const int efd) {
  * John Agapeyev
  *
  * INTERFACE:
- * void handleSocketError(const int sock);
+ * void handleSocketError(struct client *entry);
  *
  * PARAMETERS:
- * const int sock - The socket that had the error
+ * struct client *entry - The client that had the error
  *
  * RETURNS:
  * void
@@ -1065,7 +1123,7 @@ void handleSocketError(struct client *entry) {
  * John Agapeyev
  *
  * PROGRAMMER:
- * John Agapeyev
+ * John Agapeyev, Benedict Lo
  *
  * INTERFACE:
  * uint16_t readPacketLength(const int sock);

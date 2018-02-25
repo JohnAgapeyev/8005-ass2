@@ -1,4 +1,38 @@
 /*
+ * HEADER FILE: network.h - Main networking functions
+ *
+ * PROGRAM: 8005-ass2
+ *
+ * DATE: Dec. 2, 2017
+ *
+ * FUNCTIONS:
+ * void network_init(void);
+ * void network_cleanup(void);
+ * void process_packet(const unsigned char * const buffer, const size_t bufsize, struct client *src);
+ * unsigned char *exchangeKeys(struct client *clientEntry);
+ * bool receiveAndVerifyKey(const int * const sock, unsigned char *buffer, const size_t bufSize, const size_t keyLen, const size_t hmacLen);
+ * void startClient(const char *ip, const char *portString, const unsigned long long worker_count, const unsigned long connection_length);
+ * void startServer(void);
+ * size_t addClient(int sock);
+ * void initClientStruct(struct client *newClient, int sock);
+ * void *eventLoop(void *epollfd);
+ * void sendEncryptedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *dest);
+ * void decryptReceivedUserData(const unsigned char *mesg, const size_t mesgLen, struct client *src);
+ * void sendReliablePacket(const unsigned char *mesg, const size_t mesgLen, struct client *dest);
+ * void handleIncomingConnection(const int efd);
+ * void handleSocketError(struct client *entry);
+ * void handleIncomingPacket(struct client *src);
+ * int16_t readPacketLength(const int sock);
+ * void sendSigningKey(const int sock, const unsigned char *key, const size_t keyLen);
+ * void sendEphemeralKey(const int sock, const unsigned char *key, const size_t keyLen, const unsigned char *hmac, const size_t hmacLen);
+ * void readSigningKey(const int sock, struct client *clientEntry, const size_t keyLen);
+ * void *performClientActions(void *args);
+ *
+ * DESIGNER: John Agapeyev
+ *
+ * PROGRAMMER: John Agapeyev
+ */
+/*
  *Copyright (C) 2017 John Agapeyev
  *
  *This program is free software: you can redistribute it and/or modify
